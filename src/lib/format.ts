@@ -164,9 +164,16 @@ export function groupByMonth<T extends { createdAt: string }>(
     }));
 }
 
-/** 估算封面图的主色，用作占位背景（避免 CLS 时白闪） */
-export function placeholderTint(seed: string): string {
+/**
+ * 封面图的占位底色（图未加载完时露出）。
+ *
+ * 关键：必须从**主题色相**派生，而不是对标题做字符串哈希 —— 后者会算出
+ * 绿/青等与主题（默认粉紫 315）完全冲突的颜色，看起来像图挂了。
+ * 这里只做很小的色相偏移（±12°）与低彩度，保证任何加载态都和谐。
+ */
+export function placeholderTint(seed: string, hue = 315): string {
   let h = 0;
-  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) % 360;
-  return `hsl(${h} 40% 88%)`;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) % 25;
+  const shift = h - 12; // -12 ~ +12
+  return `hsl(${(hue + shift + 360) % 360} 32% 90%)`;
 }

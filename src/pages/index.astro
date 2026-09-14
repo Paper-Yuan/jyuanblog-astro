@@ -87,13 +87,13 @@ const [feature, ...rest] = articles;
 
 <style>
   .hero {
-    padding: var(--m3e-space-10) 0 var(--m3e-space-8);
+    padding: var(--m3e-space-5) 0 var(--m3e-space-4);
     text-align: center;
   }
 
   .hero h1 {
     letter-spacing: -0.02em;
-    background: linear-gradient(120deg, var(--primary), var(--tertiary));
+    background: linear-gradient(120deg, var(--primary), var(--tertiary) 85%);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -113,7 +113,7 @@ const [feature, ...rest] = articles;
   }
 
   .section {
-    margin-top: var(--m3e-space-8);
+    margin-top: var(--m3e-space-5);
   }
 
   .section-head {
@@ -133,30 +133,21 @@ const [feature, ...rest] = articles;
     gap: var(--m3e-space-5);
   }
 
-  /* 首篇卡片跨两列，形成视觉焦点 */
-  .grid > :global(:first-child) {
-    grid-column: span 2;
-  }
-
-  @media (max-width: 720px) {
-    .grid > :global(:first-child) {
-      grid-column: span 1;
-    }
-  }
-
   :global(:root[data-layout='list']) .grid {
     grid-template-columns: 1fr;
   }
 
-  :global(:root[data-layout='list']) .grid > :global(:first-child) {
-    grid-column: span 1;
-  }
 
   .two-col {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
     gap: var(--m3e-space-5);
     margin-top: var(--m3e-space-8);
+  }
+
+  /* 与 ArticleCard 保持同一种容器语言：面板底色与页底仅差 1.05:1，需描边才有边界 */
+  .panel {
+    border: 1px solid var(--outline-variant);
   }
 
   .panel-title {

@@ -1,6 +1,12 @@
 ---
 /**
- * 文章卡片。列表/网格两种形态由 <html data-layout> 控制，此处只输出结构。
+ * 文章卡片。网格/列表两种形态由 <html data-layout> 控制。
+ *
+ * ⚠️ 不要用"整卡套一个 <a>"的写法：卡片里还有分类链接，
+ *    嵌套 <a> 是非法 HTML，浏览器解析时会自动闭合外层 <a>，
+ *    导致正文区被挤出链接之外（表现为封面下方多出大片空白）。
+ *    这里改用 stretched-link 模式：标题是唯一的文章链接，
+ *    由它的 ::after 覆盖整卡；分类链接用 z-index 提到覆盖层之上。
  */
 import Icon from './Icon.astro';
 import { formatDate, compactNumber, placeholderTint } from '@/lib/format';
@@ -16,63 +22,93 @@ const { article, feature = false } = Astro.props;
 
 const href = `/blog/${article.id}`;
 const tint = placeholderTint(article.title);
-// 用显式拼接而非 class:feature 指令：astro check 对 class:* 指令的元素类型推断有误报
+// 显式拼接类名而非 class:* 指令：astro check 对指令的元素类型推断有误报
 const cardClass = `card m3-card m3-card--interactive${feature ? ' feature' : ''}`;
-const titleClass = `title${feature ? ' feature' : ''}`;
+const titleClass = 'title';
 ---
 
 <article class={cardClass}>
-  <a href={href} class="link">
-    <div class="cover" style={`--tint:${tint}`}>
+  <div class="cover" style={`--tint:${tint}`}>
+    {
+      article.coverImage ? (
+        <img src={article.coverImage} alt={article.title} loading="lazy" decoding="async" />
+      ) : (
+        <span class="cover-fallback" aria-hidden="true">{article.title.slice(0, 1)}</span>
+      )
+    }
+  </div>
+
+  <div class="body">
+    <div class="meta">
       {
-        article.coverImage ? (
-          <img src={article.coverImage} alt={article.title} loading="lazy" decoding="async" />
-        ) : (
-          <span class="cover-fallback" aria-hidden="true">{article.title.slice(0, 1)}</span>
+        article.category && (
+          <a href={`/categories/${article.category.slug}`} class="m3-chip is-interactive">
+            {article.category.name}
+          </a>
         )
       }
+      {article.isTop && <span class="pin">置顶</span>}
     </div>
 
-    <div class="body">
-      <div class="meta">
-        {article.category && <a href={`/categories/${article.category.slug}`} class="m3-chip">{article.category.name}</a>}
-        {article.isTop && <span class="pin">置顶</span>}
-      </div>
+    <h2 class={titleClass}>
+      <a href={href} class="link">{article.title}</a>
+    </h2>
 
-      <h2 class={titleClass}>{article.title}</h2>
-      <p class="summary">{article.summary}</p>
+    <p class="summary">{article.summary}</p>
 
-      <div class="foot">
-        <span class="stat"><Icon name="clock" size={14} /> {formatDate(article.createdAt)}</span>
-        <span class="stat"><Icon name="eye" size={14} /> {compactNumber(article.viewCount)}</span>
-        <span class="stat"><Icon name="comment" size={14} /> {article.commentCount}</span>
-      </div>
+    <div class="foot">
+      <span class="stat"><Icon name="clock" size={14} /> {formatDate(article.createdAt)}</span>
+      <span class="stat"><Icon name="eye" size={14} /> {compactNumber(article.viewCount)}</span>
+      <span class="stat"><Icon name="comment" size={14} /> {article.commentCount}</span>
     </div>
-  </a>
+  </div>
 </article>
 
 <style>
   .card {
-    padding: 0;
-    overflow: hidden;
-  }
-
-  .link {
+    position: relative; /* stretched-link 的定位基准 */
     display: flex;
     flex-direction: column;
-    height: 100%;
+    padding: 0;
+    overflow: hidden;
+    /* 卡片表面与页面底色仅差 1.05:1，加一条描边才有可见边界 */
+    border: 1px solid var(--outline-variant);
+  }
+
+  /* 标题里的链接铺满整卡，实现"整卡可点"而不嵌套 <a> */
+  .link {
     color: inherit;
   }
 
-  .link:hover {
+  .link::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+  }
+
+  .link:hover,
+  .link:focus-visible {
     text-decoration: none;
+  }
+
+  /* 卡片内其他可点元素需浮到覆盖层之上 */
+  .is-interactive {
+    position: relative;
+    z-index: 2;
   }
 
   .cover {
     position: relative;
     aspect-ratio: 16 / 9;
-    background: var(--tint);
     overflow: hidden;
+    /* 占位色由主题色相派生；暗色下压暗，避免深色页面上闪一块近白 */
+    background: var(--tint, var(--surface-container-high));
+  }
+
+  /* 暗色下 placeholderTint 的浅色会闪出一块近白，这里与暗表面混合压暗 */
+  :global(:root.dark) .cover {
+    background: color-mix(in srgb, var(--tint, var(--surface-container-high)) 22%, var(--surface-container-high));
   }
 
   .cover img {
@@ -82,8 +118,13 @@ const titleClass = `title${feature ? ' feature' : ''}`;
     transition: transform var(--m3e-duration-long) var(--m3e-easing-emphasized-decelerate);
   }
 
+  /* hover 反馈挂在卡片上（链接覆盖层吃不到 :hover 的兄弟元素） */
   .card:hover .cover img {
     transform: scale(1.04);
+  }
+
+  .card:hover .title {
+    color: var(--primary);
   }
 
   .cover-fallback {
@@ -113,6 +154,11 @@ const titleClass = `title${feature ? ' feature' : ''}`;
     min-height: 32px;
   }
 
+  /* 既无分类也无置顶时不要留出空行 */
+  .meta:empty {
+    display: none;
+  }
+
   .pin {
     padding: 2px 8px;
     border-radius: var(--shape-corner-s);
@@ -127,6 +173,7 @@ const titleClass = `title${feature ? ' feature' : ''}`;
     line-height: var(--m3e-title-lg-line);
     font-weight: 600;
     color: var(--on-surface);
+    transition: color var(--m3e-duration-short) var(--m3e-easing-standard);
     display: -webkit-box;
     -webkit-line-clamp: 2;
     line-clamp: 2;
@@ -134,10 +181,6 @@ const titleClass = `title${feature ? ' feature' : ''}`;
     overflow: hidden;
   }
 
-  .title.feature {
-    font-size: var(--m3e-headline-md-size);
-    line-height: var(--m3e-headline-md-line);
-  }
 
   .summary {
     color: var(--on-surface-variant);
@@ -155,8 +198,10 @@ const titleClass = `title${feature ? ' feature' : ''}`;
     flex-wrap: wrap;
     gap: var(--m3e-space-4);
     margin-top: var(--m3e-space-2);
-    color: var(--on-surface-variant);
-    font-size: var(--m3e-label-md-size);
+    /* 用 on-surface 而非 on-surface-variant：12px 小字经抗锯齿后
+       实测对比度只有 4.15:1，低于 AA 的 4.5:1 */
+    color: var(--on-surface);
+    font-size: 0.8125rem;
   }
 
   .stat {
@@ -165,13 +210,8 @@ const titleClass = `title${feature ? ' feature' : ''}`;
     gap: 4px;
   }
 
-  /* 网格布局（默认）：自适应列 */
-  :global(:root[data-layout='grid']) .card {
-    height: 100%;
-  }
-
-  /* 列表布局：横向排列，封面缩小 */
-  :global(:root[data-layout='list']) .link {
+  /* 列表布局：横向排列，封面固定宽度 */
+  :global(:root[data-layout='list']) .card {
     flex-direction: row;
   }
 
@@ -181,13 +221,9 @@ const titleClass = `title${feature ? ' feature' : ''}`;
     aspect-ratio: 16 / 10;
   }
 
-  :global(:root[data-layout='list']) .summary {
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-  }
 
   @media (max-width: 640px) {
-    :global(:root[data-layout='list']) .link {
+    :global(:root[data-layout='list']) .card {
       flex-direction: column;
     }
 
