@@ -1,0 +1,187 @@
+---
+/**
+ * 基础布局。
+ *
+ * 关键点：出厂配色在**构建期**算好直接写进 <style>，因此默认访客零 JS 就有正确配色；
+ * 改过设置的访客由内联脚本注入 localStorage 里缓存的 CSS，同样不闪。
+ */
+import '@/styles/variables.css';
+import '@/styles/main.css';
+import TopAppBar from '@/components/TopAppBar.astro';
+import Footer from '@/components/Footer.astro';
+import SettingsPanel from '@/components/SettingsPanel.svelte';
+import { resolveScheme, schemeToCss } from '@/lib/mc-utils';
+import { SITE, THEME_DEFAULTS } from '@/config/site';
+import { DEFAULT_SETTINGS } from '@/lib/theme';
+
+interface Props {
+  title?: string;
+  description?: string;
+  /** 文章页传入，用于注入 JSON-LD BlogPosting */
+  jsonLd?: Record<string, unknown>;
+  /** 是否显示顶栏（登录页等可关掉） */
+  showNav?: boolean;
+  /** 文章页用窄栏居中，列表页用宽栏 */
+  width?: 'wide' | 'reading';
+}
+
+const {
+  title,
+  description = SITE.description,
+  jsonLd,
+  showNav = true,
+  width = 'wide',
+} = Astro.props;
+
+const pageTitle = title ? `${title} — ${SITE.title}` : `${SITE.title} — ${SITE.subtitle}`;
+const canonical = new URL(Astro.url.pathname, SITE.url).href;
+
+// 构建期出厂配色：默认访客无需任何 JS 即得到正确颜色
+const defaultCss = [
+  schemeToCss(resolveScheme(THEME_DEFAULTS.hue, false, THEME_DEFAULTS.style, THEME_DEFAULTS.spec), ':root'),
+  schemeToCss(resolveScheme(THEME_DEFAULTS.hue, true, THEME_DEFAULTS.style, THEME_DEFAULTS.spec), ':root.dark'),
+].join('\n\n');
+
+const ogImage = new URL('/og-default.svg', SITE.url).href;
+---
+
+<!doctype html>
+<html lang={SITE.lang} data-theme-mode={DEFAULT_SETTINGS.mode} data-wallpaper={DEFAULT_SETTINGS.wallpaper} data-layout={DEFAULT_SETTINGS.layout} data-texture={DEFAULT_SETTINGS.texture}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="generator" content={Astro.generator} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="canonical" href={canonical} />
+
+    <title>{pageTitle}</title>
+    <meta name="description" content={description} />
+    <meta name="author" content={SITE.author} />
+    <meta name="theme-color" content="#fef7ff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#141218" media="(prefers-color-scheme: dark)" />
+
+    <!-- Open Graph / Twitter -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={SITE.title} />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:locale" content={SITE.lang.replace('-', '_')} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={pageTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+
+    <!-- 订阅源 -->
+    <link rel="alternate" type="application/rss+xml" title={`${SITE.title} RSS`} href="/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title={`${SITE.title} Atom`} href="/atom.xml" />
+
+    <!--
+      出厂配色：首屏直出，无需 JS。
+      必须用 is:inline + set:html —— 普通 <style> 会被 Astro 的 CSS 管线抽成外部文件，
+      那样既多一次请求，又会丢掉 id，导致下面的防闪烁脚本找不到它。
+    -->
+    <style id="jyuanblog-theme" is:inline set:html={defaultCss}></style>
+
+    <!-- 防止配色闪烁：在任何渲染之前套用访客缓存 -->
+    <script is:inline>
+      (function () {
+        var CSS_KEY = 'jyuanblog:theme-css';
+        var S_KEY = 'jyuanblog:settings';
+        var STYLE_ID = 'jyuanblog-theme';
+        var root = document.documentElement;
+
+        function inject(css) {
+          var el = document.getElementById(STYLE_ID);
+          if (!el) {
+            el = document.createElement('style');
+            el.id = STYLE_ID;
+            document.head.appendChild(el);
+          }
+          el.textContent = css;
+        }
+
+        // 1) 访客改过配色 -> 用缓存的 CSS 覆盖出厂值
+        try {
+          var cached = localStorage.getItem(CSS_KEY);
+          if (cached) inject(cached);
+        } catch (e) {}
+
+        // 2) 非色彩设置 -> data-* 属性与类
+        var s = null;
+        try {
+          var raw = localStorage.getItem(S_KEY);
+          if (raw) s = JSON.parse(raw);
+        } catch (e) {}
+
+        if (s) {
+          var mql = window.matchMedia('(prefers-color-scheme: dark)');
+          var eff = s.mode === 'auto' || !s.mode ? (mql.matches ? 'dark' : 'light') : s.mode;
+          root.classList.toggle('dark', eff === 'dark');
+          root.dataset.themeMode = s.mode || 'auto';
+          root.dataset.wallpaper = s.wallpaper || 'banner';
+          root.dataset.layout = s.layout || 'grid';
+          root.dataset.texture = s.texture || 'none';
+          if (typeof s.textureOpacity === 'number') {
+            root.style.setProperty('--texture-opacity', String(s.textureOpacity));
+          }
+          if (s.reduceMotion) root.classList.add('motion-reduced');
+
+          // auto 模式跟随系统变化
+          if (s.mode === 'auto' || !s.mode) {
+            mql.addEventListener('change', function (e) {
+              root.classList.toggle('dark', e.matches);
+            });
+          }
+        }
+      })();
+    </script>
+
+    {jsonLd && (
+      <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+    )}
+  </head>
+
+  <body class="has-wallpaper">
+    <a href="#main" class="skip-link">跳到正文</a>
+    {showNav && <TopAppBar />}
+    <main id="main" class={width === 'reading' ? 'm3-layout narrow' : 'm3-layout'}>
+      <slot />
+    </main>
+    <Footer />
+
+    <!--
+      设置面板用 client:idle 水合：岛本身很小，重的配色引擎由它按需动态 import。
+      因此默认访客不会下载 HCT 引擎。
+    -->
+    {showNav && <SettingsPanel client:idle />}
+  </body>
+</html>
+
+<style>
+  .skip-link {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    z-index: 100;
+    padding: var(--m3e-space-3) var(--m3e-space-5);
+    background: var(--primary);
+    color: var(--on-primary);
+    border-radius: 0 0 var(--shape-corner-m) 0;
+  }
+
+  .skip-link:focus {
+    left: 0;
+  }
+
+  main {
+    padding-top: var(--m3e-space-8);
+    padding-bottom: var(--m3e-space-10);
+    min-height: calc(100vh - var(--m3e-topbar-h) - 200px);
+  }
+
+  .narrow {
+    max-width: var(--m3e-reading-max);
+  }
+</style>

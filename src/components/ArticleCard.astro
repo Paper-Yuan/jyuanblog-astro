@@ -1,0 +1,196 @@
+---
+/**
+ * 文章卡片。列表/网格两种形态由 <html data-layout> 控制，此处只输出结构。
+ */
+import Icon from './Icon.astro';
+import { formatDate, compactNumber, placeholderTint } from '@/lib/format';
+import type { Article } from '@/lib/api';
+
+interface Props {
+  article: Article;
+  /** 首篇卡片放大展示（首页顶部） */
+  feature?: boolean;
+}
+
+const { article, feature = false } = Astro.props;
+
+const href = `/blog/${article.id}`;
+const tint = placeholderTint(article.title);
+---
+
+<article class="card m3-card m3-card--interactive" class:feature>
+  <a href={href} class="link">
+    <div class="cover" style={`--tint:${tint}`}>
+      {
+        article.coverImage ? (
+          <img src={article.coverImage} alt={article.title} loading="lazy" decoding="async" />
+        ) : (
+          <span class="cover-fallback" aria-hidden="true">{article.title.slice(0, 1)}</span>
+        )
+      }
+    </div>
+
+    <div class="body">
+      <div class="meta">
+        {article.category && <a href={`/categories/${article.category.slug}`} class="m3-chip">{article.category.name}</a>}
+        {article.isTop && <span class="pin">置顶</span>}
+      </div>
+
+      <h2 class="title" class:feature>{article.title}</h2>
+      <p class="summary">{article.summary}</p>
+
+      <div class="foot">
+        <span class="stat"><Icon name="clock" size={14} /> {formatDate(article.createdAt)}</span>
+        <span class="stat"><Icon name="eye" size={14} /> {compactNumber(article.viewCount)}</span>
+        <span class="stat"><Icon name="comment" size={14} /> {article.commentCount}</span>
+      </div>
+    </div>
+  </a>
+</article>
+
+<style>
+  .card {
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .link {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    color: inherit;
+  }
+
+  .link:hover {
+    text-decoration: none;
+  }
+
+  .cover {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    background: var(--tint);
+    overflow: hidden;
+  }
+
+  .cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform var(--m3e-duration-long) var(--m3e-easing-emphasized-decelerate);
+  }
+
+  .card:hover .cover img {
+    transform: scale(1.04);
+  }
+
+  .cover-fallback {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, var(--primary-container), var(--secondary-container));
+    color: var(--on-primary-container);
+    font-size: 2.5rem;
+    font-weight: 700;
+    opacity: 0.9;
+  }
+
+  .body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--m3e-space-2);
+    padding: var(--m3e-space-5);
+    flex: 1;
+  }
+
+  .meta {
+    display: flex;
+    align-items: center;
+    gap: var(--m3e-space-2);
+    min-height: 32px;
+  }
+
+  .pin {
+    padding: 2px 8px;
+    border-radius: var(--shape-corner-s);
+    background: var(--primary);
+    color: var(--on-primary);
+    font-size: var(--m3e-label-md-size);
+    font-weight: 600;
+  }
+
+  .title {
+    font-size: var(--m3e-title-lg-size);
+    line-height: var(--m3e-title-lg-line);
+    font-weight: 600;
+    color: var(--on-surface);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .title.feature {
+    font-size: var(--m3e-headline-md-size);
+    line-height: var(--m3e-headline-md-line);
+  }
+
+  .summary {
+    color: var(--on-surface-variant);
+    font-size: var(--m3e-body-md-size);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    flex: 1;
+  }
+
+  .foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--m3e-space-4);
+    margin-top: var(--m3e-space-2);
+    color: var(--on-surface-variant);
+    font-size: var(--m3e-label-md-size);
+  }
+
+  .stat {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* 网格布局（默认）：自适应列 */
+  :global(:root[data-layout='grid']) .card {
+    height: 100%;
+  }
+
+  /* 列表布局：横向排列，封面缩小 */
+  :global(:root[data-layout='list']) .link {
+    flex-direction: row;
+  }
+
+  :global(:root[data-layout='list']) .cover {
+    width: 240px;
+    flex-shrink: 0;
+    aspect-ratio: 16 / 10;
+  }
+
+  :global(:root[data-layout='list']) .summary {
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+
+  @media (max-width: 640px) {
+    :global(:root[data-layout='list']) .link {
+      flex-direction: column;
+    }
+
+    :global(:root[data-layout='list']) .cover {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+    }
+  }
+</style>

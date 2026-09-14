@@ -1,0 +1,443 @@
+/* ============================================================================
+   基础样式：重置 / 排版 / M3 组件原语
+   依赖 variables.css 的 token，必须在其之后加载。
+   ============================================================================ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  font-family: var(--m3e-font-sans);
+  font-size: var(--m3e-body-lg-size);
+  line-height: var(--m3e-body-lg-line);
+  color: var(--on-surface);
+  background: var(--surface);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ---- 壁纸层：访客可在显示设置里切成纯色 -------------------------------- */
+body {
+  background-image: none;
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  background-attachment: scroll;
+}
+
+:root[data-wallpaper='banner'] body.has-wallpaper {
+  background-image: var(--wallpaper-url);
+  position: relative;
+}
+
+/* 壁纸上叠一层表面色渐变，保证正文对比度不被照片破坏 */
+:root[data-wallpaper='banner'] body.has-wallpaper::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface) 72%, transparent) 0%,
+    color-mix(in srgb, var(--surface) 92%, transparent) 55%,
+    var(--surface) 100%
+  );
+}
+
+/* ---- 纹理层：零请求，纯 CSS 生成 ----------------------------------------- */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: var(--texture-opacity);
+}
+
+:root[data-texture='starlight'] body::after {
+  background-image:
+    radial-gradient(1px 1px at 20% 30%, var(--on-surface), transparent),
+    radial-gradient(1px 1px at 60% 70%, var(--on-surface), transparent),
+    radial-gradient(1px 1px at 80% 20%, var(--primary), transparent),
+    radial-gradient(1.5px 1.5px at 35% 80%, var(--on-surface), transparent),
+    radial-gradient(1px 1px at 90% 60%, var(--primary), transparent);
+  background-size: 240px 240px, 320px 320px, 400px 400px, 280px 280px, 360px 360px;
+}
+
+:root[data-texture='cyber-dots'] body::after {
+  background-image: radial-gradient(var(--primary) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+:root[data-texture='topography'] body::after {
+  background-image:
+    repeating-linear-gradient(0deg, transparent, transparent 19px, var(--on-surface) 19px, var(--on-surface) 20px),
+    repeating-linear-gradient(90deg, transparent, transparent 19px, var(--on-surface) 19px, var(--on-surface) 20px);
+  opacity: calc(var(--texture-opacity) * 0.35);
+}
+
+:root[data-texture='geometric'] body::after {
+  background-image:
+    repeating-linear-gradient(45deg, var(--primary) 0 1px, transparent 1px 28px),
+    repeating-linear-gradient(-45deg, var(--primary) 0 1px, transparent 1px 28px);
+  opacity: calc(var(--texture-opacity) * 0.5);
+}
+
+:root[data-texture='sakura'] body::after {
+  background-image:
+    radial-gradient(circle at 25% 25%, var(--primary) 2px, transparent 3px),
+    radial-gradient(circle at 75% 65%, var(--secondary) 2px, transparent 3px),
+    radial-gradient(circle at 50% 90%, var(--primary) 1.5px, transparent 2.5px);
+  background-size: 160px 160px, 200px 200px, 240px 240px;
+}
+
+img,
+picture,
+video,
+canvas,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+input,
+button,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: var(--shape-corner-xs);
+}
+
+::selection {
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+}
+
+/* 滚动条 */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--surface-container-low);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--outline-variant);
+  border-radius: var(--shape-corner-full);
+  border: 2px solid var(--surface-container-low);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--outline);
+}
+
+/* ============================================================================
+   M3 组件原语
+   ============================================================================ */
+
+.m3-layout {
+  max-width: var(--m3e-content-max);
+  margin: 0 auto;
+  padding: 0 var(--m3e-space-6);
+}
+
+/* ---- 卡片：靠表面层级表达高度，不用重阴影 -------------------------------- */
+.m3-card {
+  background: var(--surface-container-low);
+  border-radius: var(--shape-corner-l);
+  padding: var(--m3e-space-5);
+  transition:
+    background var(--m3e-duration-medium) var(--m3e-easing-standard),
+    transform var(--m3e-duration-medium) var(--m3e-easing-emphasized-decelerate);
+}
+
+.m3-card--interactive:hover {
+  background: var(--surface-container);
+  transform: translateY(-2px);
+}
+
+/* ---- 按钮 ---------------------------------------------------------------- */
+.m3-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--m3e-space-2);
+  height: 40px;
+  padding: 0 var(--m3e-space-5);
+  border: none;
+  border-radius: var(--shape-corner-full);
+  background: var(--surface-container-high);
+  color: var(--on-surface-variant);
+  font-size: var(--m3e-label-lg-size);
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  overflow: hidden;
+  transition:
+    background var(--m3e-duration-short) var(--m3e-easing-standard),
+    box-shadow var(--m3e-duration-short) var(--m3e-easing-standard);
+}
+
+.m3-button:hover {
+  background: var(--surface-container-highest);
+  text-decoration: none;
+}
+
+.m3-button--filled {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.m3-button--filled:hover {
+  background: color-mix(in srgb, var(--primary) 92%, var(--on-primary));
+}
+
+.m3-button--tonal {
+  background: var(--secondary-container);
+  color: var(--on-secondary-container);
+}
+
+.m3-button--outlined {
+  background: transparent;
+  color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--outline);
+}
+
+.m3-button--outlined:hover {
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+}
+
+.m3-button--icon {
+  width: 40px;
+  padding: 0;
+  border-radius: var(--shape-corner-full);
+}
+
+/* ---- 图标按钮的紧凑变体 -------------------------------------------------- */
+.m3-icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: var(--shape-corner-full);
+  background: transparent;
+  color: var(--on-surface-variant);
+  cursor: pointer;
+  transition: background var(--m3e-duration-short) var(--m3e-easing-standard);
+}
+
+.m3-icon-btn:hover {
+  background: color-mix(in srgb, var(--on-surface) 8%, transparent);
+}
+
+/* ---- chip ---------------------------------------------------------------- */
+.m3-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--m3e-space-1);
+  height: 32px;
+  padding: 0 var(--m3e-space-3);
+  border-radius: var(--shape-corner-s);
+  background: var(--surface-container-high);
+  color: var(--on-surface-variant);
+  font-size: var(--m3e-label-md-size);
+  white-space: nowrap;
+}
+
+a.m3-chip:hover {
+  background: var(--surface-container-highest);
+  text-decoration: none;
+  color: var(--on-surface);
+}
+
+/* ---- 输入框 -------------------------------------------------------------- */
+.m3-field {
+  width: 100%;
+  height: 48px;
+  padding: 0 var(--m3e-space-4);
+  border: none;
+  border-radius: var(--shape-corner-m);
+  background: var(--surface-container-high);
+  color: var(--on-surface);
+  font-size: var(--m3e-body-md-size);
+}
+
+.m3-field::placeholder {
+  color: var(--on-surface-variant);
+}
+
+/* ---- 分隔线 -------------------------------------------------------------- */
+.m3-divider {
+  height: 1px;
+  border: none;
+  background: var(--outline-variant);
+}
+
+/* ============================================================================
+   排版工具类
+   ============================================================================ */
+.type-display-lg { font-size: var(--m3e-display-lg-size); line-height: var(--m3e-display-lg-line); font-weight: 400; }
+.type-display-md { font-size: var(--m3e-display-md-size); line-height: var(--m3e-display-md-line); font-weight: 400; }
+.type-headline-lg { font-size: var(--m3e-headline-lg-size); line-height: var(--m3e-headline-lg-line); font-weight: 400; }
+.type-headline-md { font-size: var(--m3e-headline-md-size); line-height: var(--m3e-headline-md-line); font-weight: 400; }
+.type-headline-sm { font-size: var(--m3e-headline-sm-size); line-height: var(--m3e-headline-sm-line); font-weight: 400; }
+.type-title-lg { font-size: var(--m3e-title-lg-size); line-height: var(--m3e-title-lg-line); font-weight: 500; }
+.type-title-md { font-size: var(--m3e-title-md-size); line-height: var(--m3e-title-md-line); font-weight: 500; }
+.type-title-sm { font-size: var(--m3e-title-sm-size); line-height: var(--m3e-title-sm-line); font-weight: 500; }
+.type-body-lg { font-size: var(--m3e-body-lg-size); line-height: var(--m3e-body-lg-line); }
+.type-body-md { font-size: var(--m3e-body-md-size); line-height: var(--m3e-body-md-line); }
+.type-body-sm { font-size: var(--m3e-body-sm-size); line-height: var(--m3e-body-sm-line); }
+.type-label-lg { font-size: var(--m3e-label-lg-size); line-height: var(--m3e-label-lg-line); font-weight: 500; }
+.type-label-md { font-size: var(--m3e-label-md-size); line-height: var(--m3e-label-md-line); font-weight: 500; }
+
+.text-muted {
+  color: var(--on-surface-variant);
+}
+
+/* ============================================================================
+   Markdown 正文排版
+   ============================================================================ */
+.prose {
+  color: var(--on-surface);
+  font-size: var(--m3e-body-lg-size);
+  line-height: 1.8;
+  overflow-wrap: break-word;
+}
+
+.prose > * + * {
+  margin-top: 1em;
+}
+
+.prose h2 {
+  margin-top: 2em;
+  font-size: var(--m3e-headline-sm-size);
+  line-height: var(--m3e-headline-sm-line);
+  font-weight: 500;
+  scroll-margin-top: calc(var(--m3e-topbar-h) + var(--m3e-space-4));
+}
+
+.prose h3 {
+  margin-top: 1.6em;
+  font-size: var(--m3e-title-lg-size);
+  line-height: var(--m3e-title-lg-line);
+  font-weight: 500;
+  scroll-margin-top: calc(var(--m3e-topbar-h) + var(--m3e-space-4));
+}
+
+.prose h4 {
+  margin-top: 1.4em;
+  font-size: var(--m3e-title-md-size);
+  font-weight: 600;
+}
+
+.prose ul,
+.prose ol {
+  padding-left: 1.5em;
+}
+
+.prose li + li {
+  margin-top: 0.35em;
+}
+
+.prose a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.prose blockquote {
+  padding: var(--m3e-space-3) var(--m3e-space-5);
+  border-left: 3px solid var(--primary);
+  border-radius: var(--shape-corner-s);
+  background: var(--surface-container-low);
+  color: var(--on-surface-variant);
+}
+
+.prose code {
+  padding: 2px 6px;
+  border-radius: var(--shape-corner-xs);
+  background: var(--surface-container-high);
+  color: var(--on-surface);
+  font-family: var(--m3e-font-mono);
+  font-size: 0.9em;
+}
+
+.prose pre {
+  padding: var(--m3e-space-4);
+  border-radius: var(--shape-corner-m);
+  background: var(--inverse-surface);
+  color: var(--inverse-on-surface);
+  overflow-x: auto;
+  font-size: var(--m3e-body-md-size);
+  line-height: 1.6;
+}
+
+.prose pre code {
+  padding: 0;
+  background: none;
+  color: inherit;
+  font-size: inherit;
+}
+
+.prose img {
+  border-radius: var(--shape-corner-m);
+}
+
+.prose hr {
+  border: none;
+  height: 1px;
+  background: var(--outline-variant);
+  margin: 2em 0;
+}
+
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--m3e-body-md-size);
+}
+
+.prose th,
+.prose td {
+  padding: var(--m3e-space-2) var(--m3e-space-3);
+  border: 1px solid var(--outline-variant);
+  text-align: left;
+}
+
+.prose th {
+  background: var(--surface-container);
+  font-weight: 600;
+}

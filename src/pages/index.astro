@@ -1,0 +1,217 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import ArticleCard from '@/components/ArticleCard.astro';
+import Icon from '@/components/Icon.astro';
+import { getArticles, getPopular, getCategories } from '@/lib/api';
+import { SITE } from '@/config/site';
+
+const [{ list: articles }, popular, categories] = await Promise.all([
+  getArticles({ page: 1, pageSize: SITE.pageSize }),
+  getPopular(5).catch(() => []),
+  getCategories().catch(() => []),
+]);
+
+const [feature, ...rest] = articles;
+---
+
+<BaseLayout>
+  <!-- Hero -->
+  <section class="hero">
+    <h1 class="type-display-md">{SITE.title}</h1>
+    <p class="sub type-body-lg">{SITE.subtitle}</p>
+    <div class="hero-actions">
+      <a href="/blog" class="m3-button m3-button--filled">浏览全部文章</a>
+      <a href="/search" class="m3-button m3-button--outlined">
+        <Icon name="search" size={16} /> 搜索
+      </a>
+    </div>
+  </section>
+
+  <!-- 最新文章 -->
+  <section class="section">
+    <header class="section-head">
+      <h2 class="type-headline-sm">最新文章</h2>
+      <a href="/blog" class="more type-label-lg">全部 →</a>
+    </header>
+
+    {
+      articles.length === 0 ? (
+        <p class="empty">还没有已发布的文章。</p>
+      ) : (
+        <div class="grid">
+          {feature && <ArticleCard article={feature} feature />}
+          {rest.map((a) => (
+            <ArticleCard article={a} />
+          ))}
+        </div>
+      )
+    }
+  </section>
+
+  <!-- 热门 + 分类 -->
+  <section class="two-col">
+    {
+      popular.length > 0 && (
+        <div class="m3-card panel">
+          <h2 class="type-title-lg panel-title">热门文章</h2>
+          <ol class="popular">
+            {popular.map((a, i) => (
+              <li>
+                <span class="rank">{i + 1}</span>
+                <a href={`/blog/${a.id}`}>{a.title}</a>
+                <span class="muted type-body-sm">{a.viewCount} 阅读</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )
+    }
+
+    {
+      categories.length > 0 && (
+        <div class="m3-card panel">
+          <h2 class="type-title-lg panel-title">分类</h2>
+          <div class="cats">
+            {categories.map((c) => (
+              <a href={`/categories/${c.slug}`} class="m3-chip">
+                <Icon name="folder" size={14} /> {c.name}
+                <span class="muted">{c.articleCount ?? 0}</span>
+              </a>
+            ))}
+          </div>
+        </div>
+      )
+    }
+  </section>
+</BaseLayout>
+
+<style>
+  .hero {
+    padding: var(--m3e-space-10) 0 var(--m3e-space-8);
+    text-align: center;
+  }
+
+  .hero h1 {
+    letter-spacing: -0.02em;
+    background: linear-gradient(120deg, var(--primary), var(--tertiary));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .sub {
+    margin-top: var(--m3e-space-3);
+    color: var(--on-surface-variant);
+  }
+
+  .hero-actions {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: var(--m3e-space-3);
+    margin-top: var(--m3e-space-6);
+  }
+
+  .section {
+    margin-top: var(--m3e-space-8);
+  }
+
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: var(--m3e-space-5);
+  }
+
+  .more {
+    color: var(--primary);
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: var(--m3e-space-5);
+  }
+
+  /* 首篇卡片跨两列，形成视觉焦点 */
+  .grid > :global(:first-child) {
+    grid-column: span 2;
+  }
+
+  @media (max-width: 720px) {
+    .grid > :global(:first-child) {
+      grid-column: span 1;
+    }
+  }
+
+  :global(:root[data-layout='list']) .grid {
+    grid-template-columns: 1fr;
+  }
+
+  :global(:root[data-layout='list']) .grid > :global(:first-child) {
+    grid-column: span 1;
+  }
+
+  .two-col {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: var(--m3e-space-5);
+    margin-top: var(--m3e-space-8);
+  }
+
+  .panel-title {
+    margin-bottom: var(--m3e-space-4);
+  }
+
+  .popular {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--m3e-space-1);
+  }
+
+  .popular li {
+    display: flex;
+    align-items: center;
+    gap: var(--m3e-space-3);
+    padding: var(--m3e-space-2) 0;
+  }
+
+  .rank {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    border-radius: var(--shape-corner-full);
+    background: var(--secondary-container);
+    color: var(--on-secondary-container);
+    font-size: var(--m3e-label-md-size);
+    font-weight: 700;
+  }
+
+  .popular a {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--on-surface);
+  }
+
+  .cats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--m3e-space-2);
+  }
+
+  .muted {
+    color: var(--on-surface-variant);
+  }
+
+  .empty {
+    padding: var(--m3e-space-8) 0;
+    text-align: center;
+    color: var(--on-surface-variant);
+  }
+</style>

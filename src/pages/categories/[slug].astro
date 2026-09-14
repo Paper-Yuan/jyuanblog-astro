@@ -1,0 +1,77 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import ArticleCard from '@/components/ArticleCard.astro';
+import { getCategories, getAllArticles, type Category } from '@/lib/api';
+
+export async function getStaticPaths() {
+  const categories = await getCategories();
+  return categories.map((c) => ({ params: { slug: c.slug }, props: { category: c } }));
+}
+
+interface Props {
+  category: Category;
+}
+
+const { category } = Astro.props;
+const all = await getAllArticles();
+const articles = all.filter((a) => a.category?.id === category.id);
+---
+
+<BaseLayout title={category.name} description={category.description}>
+  <header class="head">
+    <nav class="crumb type-body-sm">
+      <a href="/categories">分类</a>
+      <span aria-hidden="true">/</span>
+      <span>{category.name}</span>
+    </nav>
+    <h1 class="type-headline-lg">{category.name}</h1>
+    {category.description && <p class="muted type-body-md">{category.description}</p>}
+    <p class="muted type-body-sm">{articles.length} 篇</p>
+  </header>
+
+  {
+    articles.length === 0 ? (
+      <p class="empty">该分类下还没有文章。</p>
+    ) : (
+      <div class="grid">
+        {articles.map((a) => (
+          <ArticleCard article={a} />
+        ))}
+      </div>
+    )
+  }
+</BaseLayout>
+
+<style>
+  .head {
+    margin-bottom: var(--m3e-space-6);
+  }
+
+  .crumb {
+    display: flex;
+    gap: var(--m3e-space-2);
+    margin-bottom: var(--m3e-space-3);
+    color: var(--on-surface-variant);
+  }
+
+  .muted {
+    margin-top: var(--m3e-space-2);
+    color: var(--on-surface-variant);
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: var(--m3e-space-5);
+  }
+
+  :global(:root[data-layout='list']) .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .empty {
+    padding: var(--m3e-space-8) 0;
+    text-align: center;
+    color: var(--on-surface-variant);
+  }
+</style>

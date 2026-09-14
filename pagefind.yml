@@ -1,0 +1,15 @@
+# Pagefind 索引配置
+site: dist
+output_path: dist/pagefind
+
+# 不索引的区域：目录侧栏、评论区、设置面板、页脚导航等
+exclude_selectors:
+  - ".toc"
+  - ".toc-wrap"
+  - ".comments"
+  - "[data-pagefind-ignore]"
+  - "nav"
+  - "footer"
+
+# 站点语言（影响分词）
+# 中文分词由 pagefind 的默认分词器处理

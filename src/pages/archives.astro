@@ -1,0 +1,152 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { getAllArticles } from '@/lib/api';
+import { formatDate, groupByMonth } from '@/lib/format';
+
+const articles = await getAllArticles();
+const groups = groupByMonth(articles);
+const totalViews = articles.reduce((sum, a) => sum + a.viewCount, 0);
+---
+
+<BaseLayout title="归档">
+  <header class="head">
+    <h1 class="type-headline-lg">归档</h1>
+    <p class="muted type-body-md">
+      共 {articles.length} 篇 · {groups.length} 个月 · {totalViews} 次阅读
+    </p>
+  </header>
+
+  {
+    groups.length === 0 ? (
+      <p class="empty">还没有文章。</p>
+    ) : (
+      <div class="timeline">
+        {groups.map((g) => (
+          <section class="group">
+            <h2 class="marker type-title-md">
+              <span class="dot" aria-hidden="true" />
+              {g.year} 年 {Number(g.month)} 月
+              <span class="count type-label-md">{g.items.length} 篇</span>
+            </h2>
+            <ul class="items">
+              {g.items.map((a) => (
+                <li>
+                  <a href={`/blog/${a.id}`} class="item">
+                    <span class="date type-body-sm">{formatDate(a.createdAt).slice(5)}</span>
+                    <span class="title">{a.title}</span>
+                    {a.category && <span class="m3-chip cat">{a.category.name}</span>}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
+    )
+  }
+</BaseLayout>
+
+<style>
+  .head {
+    margin-bottom: var(--m3e-space-8);
+  }
+
+  .muted {
+    margin-top: var(--m3e-space-2);
+    color: var(--on-surface-variant);
+  }
+
+  .timeline {
+    position: relative;
+    padding-left: var(--m3e-space-6);
+  }
+
+  /* 竖向时间线 */
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 8px;
+    bottom: 8px;
+    width: 2px;
+    background: var(--outline-variant);
+  }
+
+  .group {
+    margin-bottom: var(--m3e-space-8);
+  }
+
+  .marker {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--m3e-space-2);
+    margin-bottom: var(--m3e-space-3);
+  }
+
+  .dot {
+    position: absolute;
+    left: calc(-1 * var(--m3e-space-6) + 0px);
+    width: 12px;
+    height: 12px;
+    border-radius: var(--shape-corner-full);
+    background: var(--primary);
+    box-shadow: 0 0 0 3px var(--surface);
+  }
+
+  .count {
+    color: var(--on-surface-variant);
+  }
+
+  .items {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .item {
+    display: flex;
+    align-items: center;
+    gap: var(--m3e-space-3);
+    padding: var(--m3e-space-3) var(--m3e-space-4);
+    border-radius: var(--shape-corner-m);
+    color: var(--on-surface);
+    transition: background var(--m3e-duration-short) var(--m3e-easing-standard);
+  }
+
+  .item:hover {
+    background: var(--surface-container-low);
+    text-decoration: none;
+  }
+
+  .date {
+    flex-shrink: 0;
+    color: var(--on-surface-variant);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .cat {
+    flex-shrink: 0;
+  }
+
+  @media (max-width: 560px) {
+    .cat {
+      display: none;
+    }
+  }
+
+  .empty {
+    padding: var(--m3e-space-8) 0;
+    text-align: center;
+    color: var(--on-surface-variant);
+  }
+</style>

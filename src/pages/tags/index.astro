@@ -1,0 +1,93 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { getTags, getAllArticles } from '@/lib/api';
+
+const [tags, articles] = await Promise.all([getTags(), getAllArticles()]);
+
+const countOf = new Map<number, number>();
+for (const a of articles) {
+  for (const t of a.tags) countOf.set(t.id, (countOf.get(t.id) ?? 0) + 1);
+}
+
+// 按文章数降序排列，热门的在前
+const sorted = [...tags].sort((a, b) => (countOf.get(b.id) ?? 0) - (countOf.get(a.id) ?? 0));
+---
+
+<BaseLayout title="标签">
+  <header class="head">
+    <h1 class="type-headline-lg">标签</h1>
+    <p class="muted type-body-md">共 {tags.length} 个标签</p>
+  </header>
+
+  {
+    sorted.length === 0 ? (
+      <p class="empty">还没有标签。</p>
+    ) : (
+      <div class="cloud">
+        {sorted.map((t) => (
+          <a
+            href={`/tags/${t.slug}`}
+            class="tag"
+            style={t.color ? `--tag-color:${t.color}` : undefined}
+          >
+            <span class="hash">#</span>
+            {t.name}
+            <span class="n">{countOf.get(t.id) ?? 0}</span>
+          </a>
+        ))}
+      </div>
+    )
+  }
+</BaseLayout>
+
+<style>
+  .head {
+    margin-bottom: var(--m3e-space-6);
+  }
+
+  .muted {
+    margin-top: var(--m3e-space-2);
+    color: var(--on-surface-variant);
+  }
+
+  .cloud {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--m3e-space-3);
+  }
+
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: var(--m3e-space-2) var(--m3e-space-4);
+    border-radius: var(--shape-corner-full);
+    background: var(--surface-container-low);
+    color: var(--on-surface);
+    transition:
+      background var(--m3e-duration-short) var(--m3e-easing-standard),
+      transform var(--m3e-duration-short) var(--m3e-easing-standard);
+  }
+
+  .tag:hover {
+    background: var(--surface-container-high);
+    transform: translateY(-1px);
+    text-decoration: none;
+  }
+
+  .hash {
+    color: var(--tag-color, var(--primary));
+    font-weight: 700;
+  }
+
+  .n {
+    color: var(--on-surface-variant);
+    font-size: var(--m3e-label-sm-size);
+  }
+
+  .empty {
+    padding: var(--m3e-space-8) 0;
+    text-align: center;
+    color: var(--on-surface-variant);
+  }
+</style>

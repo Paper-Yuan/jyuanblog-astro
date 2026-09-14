@@ -1,0 +1,213 @@
+---
+/**
+ * 顶栏：站名 + 导航 + 搜索入口 + 显示设置触发。
+ * 移动端导航折叠为抽屉。
+ */
+import Icon from './Icon.astro';
+import { SITE, NAV } from '@/config/site';
+
+const current = Astro.url.pathname;
+const isActive = (href: string) =>
+  href === '/' ? current === '/' : current.startsWith(href);
+---
+
+<header class="topbar">
+  <div class="m3-layout inner">
+    <a href="/" class="brand" aria-label={`${SITE.title} 首页`}>
+      <span class="brand-mark" aria-hidden="true">J</span>
+      <span class="brand-text">{SITE.title}</span>
+    </a>
+
+    <nav class="nav" aria-label="主导航">
+      {
+        NAV.map((item) => (
+          <a href={item.href} class="nav-link" aria-current={isActive(item.href) ? 'page' : undefined}>
+            {item.label}
+          </a>
+        ))
+      }
+      <a href={SITE.adminUrl} class="nav-link nav-admin">管理</a>
+    </nav>
+
+    <div class="actions">
+      <a href="/search" class="m3-icon-btn" aria-label="搜索">
+        <Icon name="search" />
+      </a>
+
+      <!-- 显示设置：Svelte 岛，点击才加载 -->
+      <button
+        id="settings-trigger"
+        class="m3-icon-btn"
+        type="button"
+        aria-label="显示设置"
+        aria-haspopup="dialog"
+      >
+        <Icon name="settings" />
+      </button>
+
+      <button
+        id="mobile-nav-trigger"
+        class="m3-icon-btn mobile-only"
+        type="button"
+        aria-label="打开导航"
+        aria-expanded="false"
+        aria-controls="mobile-nav"
+      >
+        <Icon name="menu" />
+      </button>
+    </div>
+  </div>
+
+  <nav id="mobile-nav" class="mobile-nav" aria-label="移动导航" hidden>
+    {
+      NAV.map((item) => (
+        <a href={item.href} class="mobile-link" aria-current={isActive(item.href) ? 'page' : undefined}>
+          {item.label}
+        </a>
+      ))
+    }
+    <a href={SITE.adminUrl} class="mobile-link">管理后台</a>
+  </nav>
+</header>
+
+<script>
+  // 移动端抽屉：纯 DOM，无需框架
+  const trigger = document.getElementById('mobile-nav-trigger');
+  const panel = document.getElementById('mobile-nav');
+  trigger?.addEventListener('click', () => {
+    if (!panel) return;
+    const open = panel.hasAttribute('hidden');
+    panel.toggleAttribute('hidden', !open);
+    trigger.setAttribute('aria-expanded', String(open));
+  });
+</script>
+
+<style>
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    height: var(--m3e-topbar-h);
+    background: color-mix(in srgb, var(--surface) 88%, transparent);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--outline-variant);
+  }
+
+  .inner {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    gap: var(--m3e-space-6);
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: var(--m3e-space-3);
+    color: var(--on-surface);
+    flex-shrink: 0;
+  }
+
+  .brand:hover {
+    text-decoration: none;
+  }
+
+  .brand-mark {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--shape-corner-m);
+    background: var(--primary);
+    color: var(--on-primary);
+    font-weight: 700;
+    font-size: var(--m3e-title-md-size);
+  }
+
+  .brand-text {
+    font-size: var(--m3e-title-lg-size);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+
+  .nav {
+    display: flex;
+    align-items: center;
+    gap: var(--m3e-space-1);
+    margin-left: auto;
+  }
+
+  .nav-link {
+    padding: var(--m3e-space-2) var(--m3e-space-3);
+    border-radius: var(--shape-corner-s);
+    color: var(--on-surface-variant);
+    font-size: var(--m3e-label-lg-size);
+    transition: background var(--m3e-duration-short) var(--m3e-easing-standard);
+  }
+
+  .nav-link:hover {
+    background: color-mix(in srgb, var(--on-surface) 8%, transparent);
+    color: var(--on-surface);
+    text-decoration: none;
+  }
+
+  .nav-link[aria-current='page'] {
+    color: var(--primary);
+    font-weight: 600;
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+  }
+
+  .nav-admin {
+    color: var(--primary);
+  }
+
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: var(--m3e-space-1);
+    margin-left: auto;
+  }
+
+  .nav + .actions {
+    margin-left: 0;
+  }
+
+  .mobile-nav {
+    display: none;
+    flex-direction: column;
+    padding: var(--m3e-space-2) var(--m3e-space-6) var(--m3e-space-4);
+    background: var(--surface-container-low);
+    border-bottom: 1px solid var(--outline-variant);
+  }
+
+  .mobile-link {
+    padding: var(--m3e-space-3);
+    border-radius: var(--shape-corner-s);
+    color: var(--on-surface-variant);
+    font-size: var(--m3e-body-lg-size);
+  }
+
+  .mobile-link[aria-current='page'] {
+    color: var(--primary);
+    font-weight: 600;
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+  }
+
+  .mobile-only {
+    display: none;
+  }
+
+  @media (max-width: 900px) {
+    .nav {
+      display: none;
+    }
+
+    .mobile-only {
+      display: inline-grid;
+    }
+
+    .mobile-nav:not([hidden]) {
+      display: flex;
+    }
+  }
+</style>

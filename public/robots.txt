@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /pagefind/
+
+Sitemap: https://jyuanblog.cc.cd/sitemap-index.xml

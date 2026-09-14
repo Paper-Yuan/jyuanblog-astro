@@ -1,0 +1,189 @@
+/* ============================================================================
+   Material 3 Expressive 设计令牌
+   ============================================================================
+   两层结构：
+     1. --mc-*   由 HCT 引擎（src/lib/mc-utils.ts）在构建期/运行时注入，
+                 是唯一的"真值来源"，光暗两套随 .dark 类切换。
+     2. 语义层   --primary / --surface / --outline … 映射到 --mc-*，
+                 并带 oklch 回退公式，保证引擎未注入时样式依然可用。
+
+   对比度契约（不可随意破坏配对）：
+     正文文字  >= 4.5:1  -> on-surface / surface
+     大字与边界 >= 3:1
+     --primary 只能配 --on-primary，--primary-container 只能配 --on-primary-container
+   ============================================================================ */
+
+:root {
+  /* ---- 1. 色彩角色（HCT 引擎注入的真实值，此处为 oklch 回退） ---------- */
+  --primary: var(--mc-primary, oklch(42% 0.16 315));
+  --on-primary: var(--mc-on-primary, oklch(99% 0.02 315));
+  --primary-container: var(--mc-primary-container, oklch(90% 0.06 315));
+  --on-primary-container: var(--mc-on-primary-container, oklch(24% 0.09 315));
+  --inverse-primary: var(--mc-inverse-primary, oklch(90% 0.13 315));
+
+  --secondary: var(--mc-secondary, oklch(52% 0.13 20));
+  --on-secondary: var(--mc-on-secondary, oklch(99% 0.02 20));
+  --secondary-container: var(--mc-secondary-container, oklch(90% 0.05 20));
+  --on-secondary-container: var(--mc-on-secondary-container, oklch(26% 0.08 20));
+
+  --tertiary: var(--mc-tertiary, oklch(50% 0.12 215));
+  --on-tertiary: var(--mc-on-tertiary, oklch(99% 0.02 215));
+  --tertiary-container: var(--mc-tertiary-container, oklch(90% 0.05 215));
+  --on-tertiary-container: var(--mc-on-tertiary-container, oklch(26% 0.08 215));
+
+  /* 表面层级：M3 用 tonal elevation 表达高度，而不是靠阴影 */
+  --surface: var(--mc-surface, oklch(96% 0.012 315));
+  --surface-dim: var(--mc-surface-dim, oklch(93% 0.014 315));
+  --surface-bright: var(--mc-surface-bright, oklch(98% 0.008 315));
+  --surface-container-lowest: var(--mc-surface-container-lowest, oklch(98.5% 0.006 315));
+  --surface-container-low: var(--mc-surface-container-low, oklch(96.5% 0.01 315));
+  --surface-container: var(--mc-surface-container, oklch(94% 0.015 315));
+  --surface-container-high: var(--mc-surface-container-high, oklch(92% 0.02 315));
+  --surface-container-highest: var(--mc-surface-container-highest, oklch(90% 0.025 315));
+  --on-surface: var(--mc-on-surface, oklch(16% 0.02 315));
+  --surface-variant: var(--mc-surface-variant, oklch(90% 0.02 315));
+  --on-surface-variant: var(--mc-on-surface-variant, oklch(34% 0.03 315));
+  --surface-tint: var(--mc-surface-tint, oklch(42% 0.16 315));
+
+  --outline: var(--mc-outline, oklch(45% 0.03 315));
+  --outline-variant: var(--mc-outline-variant, oklch(76% 0.02 315));
+
+  --inverse-surface: var(--mc-inverse-surface, oklch(16% 0.02 315));
+  --inverse-on-surface: var(--mc-inverse-on-surface, oklch(96% 0.012 315));
+
+  --error: var(--mc-error, oklch(57% 0.21 27));
+  --on-error: var(--mc-on-error, oklch(99% 0.01 27));
+  --error-container: var(--mc-error-container, oklch(93% 0.06 27));
+  --on-error-container: var(--mc-on-error-container, oklch(36% 0.12 27));
+
+  --shadow: var(--mc-shadow, oklch(16% 0.02 315 / 0.32));
+  --scrim: var(--mc-scrim, oklch(16% 0.02 315 / 0.32));
+
+  /* ---- 2. 形状契约 ------------------------------------------------------ */
+  --shape-corner-xs: 4px;
+  --shape-corner-s: 8px;
+  --shape-corner-m: 12px;   /* 按钮 / 输入框 */
+  --shape-corner-l: 16px;   /* 卡片 */
+  --shape-corner-xl: 28px;  /* 浮层 / 对话框 / 搜索栏 */
+  --shape-corner-full: 999px;
+
+  /* ---- 3. 间距 ---------------------------------------------------------- */
+  --m3e-space-1: 4px;
+  --m3e-space-2: 8px;
+  --m3e-space-3: 12px;  /* 控件内边距 */
+  --m3e-space-4: 16px;
+  --m3e-space-5: 20px;
+  --m3e-space-6: 24px;  /* 区块间距 */
+  --m3e-space-8: 32px;  /* 内容间距 */
+  --m3e-space-10: 40px; /* 页面间距 */
+
+  /* ---- 4. 动效 ---------------------------------------------------------- */
+  --m3e-duration-short: 150ms;
+  --m3e-duration-medium: 250ms;
+  --m3e-duration-long: 400ms;
+  --m3e-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  --m3e-easing-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  --m3e-easing-emphasized-decelerate: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --m3e-easing-emphasized-accelerate: cubic-bezier(0.3, 0, 0.8, 0.15);
+
+  /* ---- 5. 排版（M3 15 阶） ---------------------------------------------- */
+  --m3e-font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+  --m3e-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --m3e-display-lg-size: 3.5625rem;  --m3e-display-lg-line: 1.12;
+  --m3e-display-md-size: 2.8125rem;  --m3e-display-md-line: 1.16;
+  --m3e-display-sm-size: 2.25rem;    --m3e-display-sm-line: 1.22;
+  --m3e-headline-lg-size: 2rem;      --m3e-headline-lg-line: 1.25;
+  --m3e-headline-md-size: 1.75rem;   --m3e-headline-md-line: 1.29;
+  --m3e-headline-sm-size: 1.5rem;    --m3e-headline-sm-line: 1.33;
+  --m3e-title-lg-size: 1.375rem;     --m3e-title-lg-line: 1.27;
+  --m3e-title-md-size: 1rem;         --m3e-title-md-line: 1.5;
+  --m3e-title-sm-size: 0.875rem;     --m3e-title-sm-line: 1.43;
+  --m3e-body-lg-size: 1rem;          --m3e-body-lg-line: 1.6;
+  --m3e-body-md-size: 0.875rem;      --m3e-body-md-line: 1.5;
+  --m3e-body-sm-size: 0.75rem;       --m3e-body-sm-line: 1.4;
+  --m3e-label-lg-size: 0.875rem;     --m3e-label-lg-line: 1.43;
+  --m3e-label-md-size: 0.75rem;      --m3e-label-md-line: 1.33;
+  --m3e-label-sm-size: 0.6875rem;    --m3e-label-sm-line: 1.45;
+
+  /* ---- 6. 高度（tonal elevation，优先用表面层级而非重阴影） ------------- */
+  --m3e-elevation-0: none;
+  --m3e-elevation-1: 0 1px 2px 0 color-mix(in srgb, var(--shadow) 30%, transparent),
+    0 1px 3px 1px color-mix(in srgb, var(--shadow) 15%, transparent);
+  --m3e-elevation-2: 0 1px 2px 0 color-mix(in srgb, var(--shadow) 30%, transparent),
+    0 2px 6px 2px color-mix(in srgb, var(--shadow) 15%, transparent);
+  --m3e-elevation-3: 0 4px 8px 3px color-mix(in srgb, var(--shadow) 15%, transparent),
+    0 1px 3px 0 color-mix(in srgb, var(--shadow) 30%, transparent);
+  --m3e-elevation-4: 0 6px 10px 4px color-mix(in srgb, var(--shadow) 15%, transparent),
+    0 2px 3px 0 color-mix(in srgb, var(--shadow) 30%, transparent);
+  --m3e-elevation-5: 0 8px 12px 6px color-mix(in srgb, var(--shadow) 15%, transparent),
+    0 4px 4px 0 color-mix(in srgb, var(--shadow) 30%, transparent);
+
+  /* ---- 7. 布局 ---------------------------------------------------------- */
+  --m3e-content-max: 1200px;
+  --m3e-reading-max: 760px;
+  --m3e-topbar-h: 64px;
+
+  --wallpaper-opacity: 1;
+  --texture-opacity: 0.12;
+
+  color-scheme: light;
+}
+
+:root.dark {
+  color-scheme: dark;
+}
+
+/* ============================================================================
+   状态层：M3 交互反馈统一走叠加层，而不是改变组件自身颜色
+   ============================================================================ */
+.m3-state-layer {
+  position: relative;
+}
+
+.m3-state-layer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: currentColor;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--m3e-duration-short) var(--m3e-easing-standard);
+}
+
+.m3-state-layer:hover::after {
+  opacity: 0.08;
+}
+
+.m3-state-layer:focus-visible::after {
+  opacity: 0.1;
+}
+
+.m3-state-layer:active::after {
+  opacity: 0.12;
+}
+
+/* ============================================================================
+   减少动效：系统偏好 或 访客手动开启
+   ============================================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+:root.motion-reduced *,
+:root.motion-reduced *::before,
+:root.motion-reduced *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}

@@ -1,0 +1,80 @@
+---
+import Icon from './Icon.astro';
+import { SITE } from '@/config/site';
+
+const year = new Date().getFullYear();
+---
+
+<footer class="footer">
+  <div class="m3-layout inner">
+    <div class="col">
+      <p class="name">{SITE.title}</p>
+      <p class="muted type-body-sm">{SITE.subtitle}</p>
+    </div>
+
+    <div class="col">
+      <p class="muted type-body-sm">本站基于</p>
+      <p class="type-body-sm">
+        Astro · Svelte · Cloudflare Workers · D1
+      </p>
+      <p class="muted type-body-sm">
+        设计参考 <a href="https://github.com/LyraVoid/Shirone" rel="noopener noreferrer">Shirone</a>
+        （Material 3 Expressive）
+      </p>
+    </div>
+
+    <div class="col">
+      <div class="feeds">
+        <a href="/rss.xml" class="m3-chip"><Icon name="rss" size={14} /> RSS</a>
+        <a href="/atom.xml" class="m3-chip"><Icon name="rss" size={14} /> Atom</a>
+        <a href="/llms.txt" class="m3-chip">llms.txt</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="m3-layout copy">
+    <span class="muted type-body-sm">© {year} {SITE.author}</span>
+  </div>
+</footer>
+
+<style>
+  .footer {
+    margin-top: var(--m3e-space-10);
+    padding: var(--m3e-space-8) 0 var(--m3e-space-6);
+    background: var(--surface-container-low);
+    border-top: 1px solid var(--outline-variant);
+  }
+
+  .inner {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: var(--m3e-space-6);
+  }
+
+  .col {
+    display: flex;
+    flex-direction: column;
+    gap: var(--m3e-space-1);
+  }
+
+  .name {
+    font-size: var(--m3e-title-md-size);
+    font-weight: 600;
+  }
+
+  .muted {
+    color: var(--on-surface-variant);
+  }
+
+  .feeds {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--m3e-space-2);
+  }
+
+  .copy {
+    margin-top: var(--m3e-space-6);
+    padding-top: var(--m3e-space-4);
+    border-top: 1px solid var(--outline-variant);
+  }
+</style>

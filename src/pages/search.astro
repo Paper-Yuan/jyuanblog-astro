@@ -1,0 +1,94 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="搜索">
+  <header class="head">
+    <h1 class="type-headline-lg">搜索</h1>
+    <p class="muted type-body-md">全文检索由 Pagefind 提供，索引在构建期生成，检索完全在浏览器本地完成。</p>
+  </header>
+
+  <!-- Pagefind 会把 UI 渲染到这里 -->
+  <div id="search"></div>
+
+  <noscript>
+    <p class="muted">搜索需要 JavaScript。你仍可以通过 <a href="/archives">归档</a> 浏览全部文章。</p>
+  </noscript>
+</BaseLayout>
+
+<!-- Pagefind 的样式表与脚本由构建后的 pagefind 步骤产出，运行时才存在 -->
+<link rel="stylesheet" href="/pagefind/pagefind-ui.css" />
+<script is:inline src="/pagefind/pagefind-ui.js"></script>
+
+<script>
+  // Pagefind UI 仅在构建产物中存在；dev 模式下会 404，此时给出提示而非静默失败。
+  function mount() {
+    const el = document.getElementById('search');
+    if (!el) return;
+
+    if (typeof (window as any).PagefindUI === 'function') {
+      new (window as any).PagefindUI({
+        element: '#search',
+        showSubResults: true,
+        showImages: false,
+        translations: {
+          placeholder: '搜索文章…',
+          clear_search: '清除',
+          load_more: '加载更多结果',
+          search_label: '搜索本站',
+          filters_label: '筛选',
+          zero_results: '没有找到与 [SEARCH_TERM] 相关的内容',
+          many_results: '找到 [COUNT] 条与 [SEARCH_TERM] 相关的内容',
+          one_result: '找到 [COUNT] 条与 [SEARCH_TERM] 相关的内容',
+        },
+      });
+    } else {
+      el.innerHTML =
+        '<p class="warn">搜索索引未生成。请运行 <code>npm run build</code>（会执行 pagefind 生成索引）后通过 <code>npm run preview</code> 查看。开发模式下此功能不可用。</p>';
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', mount);
+  } else {
+    mount();
+  }
+</script>
+
+<style>
+  .head {
+    margin-bottom: var(--m3e-space-6);
+  }
+
+  .muted {
+    margin-top: var(--m3e-space-2);
+    color: var(--on-surface-variant);
+  }
+
+  code {
+    padding: 1px 5px;
+    border-radius: var(--shape-corner-xs);
+    background: var(--surface-container-high);
+    font-family: var(--m3e-font-mono);
+    font-size: 0.9em;
+  }
+
+  .warn {
+    padding: var(--m3e-space-4);
+    border-radius: var(--shape-corner-m);
+    background: var(--surface-container-low);
+    color: var(--on-surface-variant);
+  }
+
+  /* 把 Pagefind 的默认主题色接到本站 token 上 */
+  :global(:root) {
+    --pagefind-ui-primary: var(--primary);
+    --pagefind-ui-text: var(--on-surface);
+    --pagefind-ui-background: var(--surface-container-low);
+    --pagefind-ui-border: var(--outline-variant);
+    --pagefind-ui-tag: var(--secondary-container);
+    --pagefind-ui-border-width: 1px;
+    --pagefind-ui-border-radius: var(--shape-corner-m);
+    --pagefind-ui-font: var(--m3e-font-sans);
+  }
+</style>
