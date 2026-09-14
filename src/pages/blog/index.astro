@@ -2,7 +2,6 @@
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import ArticleCard from '@/components/ArticleCard.astro';
 import { getArticles } from '@/lib/api';
-import { SITE } from '@/config/site';
 
 const page = 1;
 const { list: articles, total } = await getArticles({ page, pageSize: 50 });

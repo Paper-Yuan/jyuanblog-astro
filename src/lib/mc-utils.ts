@@ -9,25 +9,34 @@
  * 种子色由 `--hue`(0-360) 推导，因此色相滑杆的语义保持不变；
  * 引擎为每个 M3 角色返回具体 hex。
  */
-import {
-  type DynamicColor,
-  type DynamicScheme,
-  Hct,
-  type MaterialDynamicColors,
-  SchemeContent,
-  SchemeExpressive,
-  SchemeFidelity,
-  SchemeFruitSalad,
-  SchemeMonochrome,
-  SchemeNeutral,
-  SchemeRainbow,
-  SchemeTonalSpot,
-  SchemeVibrant,
-} from './vendor/material-color.mjs';
+/**
+ * vendor 是 esbuild 打包出的纯 JS（见文件末尾的重新生成说明），没有 .d.ts。
+ * 这里声明我们实际用到的成员的最小结构类型，避免 any 扩散。
+ */
+type DynamicColorLike = { getArgb(scheme: unknown): number };
+type DynamicSchemeLike = { colors: MaterialDynamicColorsLike };
+type MaterialDynamicColorsLike = Record<string, () => DynamicColorLike>;
+
+// @ts-expect-error vendor 无类型声明，按上面的结构类型使用
+const mcu: {
+  Hct: { from(h: number, c: number, t: number): { toInt(): number }; fromInt(v: number): unknown };
+  SchemeContent: new (...a: unknown[]) => DynamicSchemeLike;
+  SchemeExpressive: new (...a: unknown[]) => DynamicSchemeLike;
+  SchemeFidelity: new (...a: unknown[]) => DynamicSchemeLike;
+  SchemeFruitSalad: new (...a: unknown[]) => DynamicSchemeLike;
+  SchemeMonochrome: new (...a: unknown[]) => DynamicSchemeLike;
+  SchemeNeutral: new (...a: unknown[]) => DynamicSchemeLike;
+  SchemeRainbow: new (...a: unknown[]) => DynamicSchemeLike;
+  SchemeTonalSpot: new (...a: unknown[]) => DynamicSchemeLike;
+  SchemeVibrant: new (...a: unknown[]) => DynamicSchemeLike;
+} = await import('./vendor/material-color.mjs');
+
+const { Hct, SchemeContent, SchemeExpressive, SchemeFidelity, SchemeFruitSalad,
+        SchemeMonochrome, SchemeNeutral, SchemeRainbow, SchemeTonalSpot, SchemeVibrant } = mcu;
 
 /**
- * 重新生成 vendor 包的命令（仅在上游升级时才需要）：
- *   npx esbuild node_modules/@material/material-color-utilities/index.js \n *     --bundle --format=esm --platform=neutral \n *     --outfile=src/lib/vendor/material-color.mjs
+ * 重新生成 vendor 包（仅在上游升级时需要）：
+ *   npx esbuild node_modules/@material/material-color-utilities/index.js  *     --bundle --format=esm --platform=neutral  *     --outfile=src/lib/vendor/material-color.mjs
  * 原因：上游 0.4.0 使用省略扩展名的相对 import，Node 严格 ESM 无法解析。
  */
 
@@ -71,7 +80,7 @@ export function seedFromHue(hue: number): number {
 }
 
 /** M3/M3E 色彩角色 -> DynamicColor 解析器 */
-const roleMap: Record<string, DynamicColor | undefined> = {
+const roleMap: Record<string, DynamicColorLike | undefined> = {
   primary: undefined,
   onPrimary: undefined,
   primaryContainer: undefined,
@@ -125,7 +134,7 @@ const roleMap: Record<string, DynamicColor | undefined> = {
   errorDim: undefined,
 };
 
-function initRoleMap(colors: MaterialDynamicColors) {
+function initRoleMap(colors: MaterialDynamicColorsLike) {
   roleMap.primary = colors.primary();
   roleMap.onPrimary = colors.onPrimary();
   roleMap.primaryContainer = colors.primaryContainer();
@@ -179,7 +188,7 @@ function initRoleMap(colors: MaterialDynamicColors) {
   roleMap.errorDim = colors.errorDim();
 }
 
-function buildScheme(style: McStyle, isDark: boolean, seed: number, spec: McSpec): DynamicScheme {
+function buildScheme(style: McStyle, isDark: boolean, seed: number, spec: McSpec): DynamicSchemeLike {
   const hct = Hct.fromInt(seed);
   switch (style) {
     case 'content':

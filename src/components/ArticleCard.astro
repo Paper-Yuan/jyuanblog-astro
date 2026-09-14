@@ -16,9 +16,12 @@ const { article, feature = false } = Astro.props;
 
 const href = `/blog/${article.id}`;
 const tint = placeholderTint(article.title);
+// 用显式拼接而非 class:feature 指令：astro check 对 class:* 指令的元素类型推断有误报
+const cardClass = `card m3-card m3-card--interactive${feature ? ' feature' : ''}`;
+const titleClass = `title${feature ? ' feature' : ''}`;
 ---
 
-<article class="card m3-card m3-card--interactive" class:feature>
+<article class={cardClass}>
   <a href={href} class="link">
     <div class="cover" style={`--tint:${tint}`}>
       {
@@ -36,7 +39,7 @@ const tint = placeholderTint(article.title);
         {article.isTop && <span class="pin">置顶</span>}
       </div>
 
-      <h2 class="title" class:feature>{article.title}</h2>
+      <h2 class={titleClass}>{article.title}</h2>
       <p class="summary">{article.summary}</p>
 
       <div class="foot">
