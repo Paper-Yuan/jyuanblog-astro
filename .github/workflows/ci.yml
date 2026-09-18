@@ -1,0 +1,162 @@
+name: CI
+
+# 为什么 CI 长在这个仓库里：项目根目录（E:\Workbox\H 0912）不是 git 仓库，
+# 原先写在根目录 .github/workflows/ci.yml 的那份**从未被 GitHub 触发过**
+# —— README 里三条「已接入 CI」因此都是不成立的。
+#
+# 也不拆成三个仓库各跑各的：前台生产构建必须真的连得到一个后端（连不上要
+# 主动中止，否则会把占位文章发上线），并且 merge-admin 硬性依赖后台产物
+# dist-admin/。所以这里做一次跨仓 checkout，把三段验全 —— 需要仓库密钥
+# GH_READ_TOKEN（只读 fine-grained PAT，仅授 jyuanblog-worker 与
+# jyuanblog-frontend 两个仓）。缺这个密钥时本工作流会在 checkout 步骤直接失败，
+# 而不是静默跳过 —— 跳过就等于回到"CI 从没跑过"的老状态。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  site:
+    name: 全站（Worker API + Vue 后台 + Astro 前台）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout API (jyuanblog-worker)
+        uses: actions/checkout@v4
+        with:
+          repository: Paper-Yuan/jyuanblog-worker
+          path: jyuanblog-worker
+          token: ${{ secrets.GH_READ_TOKEN }}
+
+      - name: Checkout admin (jyuanblog-frontend)
+        uses: actions/checkout@v4
+        with:
+          repository: Paper-Yuan/jyuanblog-frontend
+          path: jyuanblog-frontend
+          token: ${{ secrets.GH_READ_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            jyuanblog-worker/package-lock.json
+            jyuanblog-frontend/package-lock.json
+
+      - name: Install deps
+        run: |
+          set -e
+          npm ci || npm install
+          (cd jyuanblog-worker && npm ci || npm install)
+          (cd jyuanblog-frontend && npm ci || npm install)
+
+      # wrangler 自己的打包器会真正解析 index.js —— 比 node --check 可靠得多
+      # （本机实测 node --check 对语法错误会误报通过）
+      - name: Bundle check (Worker)
+        working-directory: jyuanblog-worker
+        run: npx wrangler deploy --dry-run --outdir=dist
+
+      # 账号体系与评论的安全回归。脚本自己负责：准备本地 D1（建表+迁移+种子）
+      # → 起 wrangler dev → 跑用例 → 关服务。这些规则被改坏时接口照样返回 200，
+      # 只有攻击者会知道，所以必须由断言拴住。
+      - name: Security regression tests (Worker)
+        working-directory: jyuanblog-worker
+        run: npm test
+
+      - name: Typecheck (admin)
+        working-directory: jyuanblog-frontend
+        run: npx vue-tsc --noEmit
+
+      # 后台是以 /admin/ 为 base 打进同一个 Pages 项目的，构建方式必须与部署一致，
+      # 否则资源路径会指到站点根（本地看不出来，线上 404）。
+      - name: Build admin (base=/admin/)
+        working-directory: jyuanblog-frontend
+        run: npx vite build --base=/admin/ --outDir dist-admin --emptyOutDir
+
+      - name: Astro check
+        run: npx astro check
+
+      # 生产构建在 API 不可达时会主动中止，所以这里不能"连不上就降级"，
+      # 必须真的起一个后端 —— 顺带验证前台与后端的字段契约。
+      - name: Start local API
+        working-directory: jyuanblog-worker
+        run: |
+          set -e
+          npx wrangler d1 execute blog-db --local --file=schema.sql
+          npx wrangler d1 execute blog-db --local --file=migrate-3.0-users.sql
+          npx wrangler d1 execute blog-db --local --file=seed.sql
+          nohup npx wrangler dev --local --port 8797 --ip 127.0.0.1 \
+            --var ADMIN_PASSWORD:ci-only-not-a-secret \
+            --var JWT_SECRET:ci-only-not-a-secret > /tmp/api.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:8797/api/health >/dev/null 2>&1; then
+              echo "API 就绪（${i}s）"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "API 启动超时，日志：" >&2
+          tail -50 /tmp/api.log >&2
+          exit 1
+
+      # 字体源文件（24 MB TTF）刻意不进 git，构建期按固定版本 + 校验和拉取。
+      - name: Fetch brand font
+        run: npm run fonts:fetch
+
+      - name: Build (fonts + astro + pagefind + admin merge)
+        env:
+          JYUANBLOG_API_URL: http://127.0.0.1:8797/api
+        run: npm run build
+
+      # 构建产物健全性：能在"构建成功但内容为空"这类静默失败时报警
+      - name: Verify build output
+        run: |
+          set -e
+          test -f dist/index.html
+          test -f dist/rss.xml
+          test -f dist/atom.xml
+          test -f dist/pagefind/pagefind.js
+          test -f dist/admin/index.html
+          test -f dist/fonts/lxgw-wenkai-subset.woff2
+          # 首页必须至少有一个指向文章的链接（说明真的拉到了内容）
+          grep -qE 'href="/blog/[^"]+"' dist/index.html
+          # 内联脚本哈希必须已写进 _headers，否则线上 CSP 会拦掉内联脚本
+          grep -q "sha256-" dist/_headers
+          test -f dist/llms.txt
+          test -f dist/llms-full.txt
+          test -f dist/timeline/index.html
+
+      - name: Verify fonts budget
+        run: npm run fonts:check
+
+      # llms-full.txt 含正文，一旦漏进草稿就是把未发布内容公开给任意爬虫，
+      # 而页面一切正常、构建也不报错 —— 只能靠这条断言拦住。
+      - name: Verify exports (no drafts leaked)
+        run: node scripts/verify-exports.mjs dist http://127.0.0.1:8797/api
+
+      - name: Serve build for visual checks
+        run: |
+          set -e
+          nohup npx wrangler pages dev dist --port 8790 --ip 127.0.0.1 > /tmp/pagesdev.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:8790/ >/dev/null 2>&1; then
+              echo "静态站点就绪（${i}s）"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "pages dev 启动超时，日志：" >&2
+          tail -50 /tmp/pagesdev.log >&2
+          exit 1
+
+      # CSS 的失败是静默的：版心被挤窄、形状契约被互换、错落失效都不报错，
+      # 只会慢慢变难读。所以量的是真实浏览器算出的样式，不是源码文本。
+      - name: Visual & motion regression
+        run: node scripts/verify-visual.mjs http://127.0.0.1:8790

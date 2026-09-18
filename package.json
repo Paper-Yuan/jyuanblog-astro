@@ -6,9 +6,12 @@
   "description": "千机志 静态前台 —— Astro 7 + Svelte 5 islands + Material 3 Expressive 设计系统",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build && pagefind --site dist && node scripts/merge-admin.mjs",
+    "build": "astro build && node scripts/build-fonts.mjs && pagefind --site dist && node scripts/merge-admin.mjs",
     "build:only": "astro build",
     "build:admin": "MSYS_NO_PATHCONV=1 npx --prefix ../jyuanblog-frontend vite build --base=/admin/ --outDir dist-admin --emptyOutDir",
+    "fonts:fetch": "node scripts/fetch-fonts.mjs",
+    "fonts:build": "node scripts/build-fonts.mjs",
+    "fonts:check": "node scripts/check-fonts.mjs",
     "preview": "astro preview",
     "check": "astro check",
     "search:index": "pagefind --site dist",
@@ -25,6 +28,7 @@
     "marked": "^18.0.13",
     "pagefind": "^1.5.2",
     "sanitize-html": "^2.17.7",
+    "subset-font": "^2.4.0",
     "svelte": "^5.57.0"
   },
   "devDependencies": {

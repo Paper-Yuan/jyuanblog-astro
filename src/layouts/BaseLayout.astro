@@ -82,6 +82,30 @@ const ogImage = new URL('/og-default.svg', SITE.url).href;
     -->
     <style id="jyuanblog-theme" is:inline set:html={defaultCss}></style>
 
+    <!--
+      品牌字体的 @font-face。文件名固定，实际字节由构建期的 scripts/build-fonts.mjs
+      在 astro build **之后**按 dist 里真正出现的字符切出来（先引用、后填充）。
+      必须 is:inline：普通 <style> 会进 Vite 的资源管线，而那一刻 /fonts/*.woff2
+      还不存在，会被当成缺失资源报错。
+      font-display: swap —— 子集只有几十 KB，但宁可闪一下系统字也不要标题空白。
+    -->
+    <style is:inline>
+      @font-face {
+        font-family: 'LXGW WenKai';
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url('/fonts/lxgw-wenkai-subset.woff2') format('woff2');
+      }
+      @font-face {
+        font-family: 'LXGW WenKai';
+        font-style: normal;
+        font-weight: 500 700;
+        font-display: swap;
+        src: url('/fonts/lxgw-wenkai-medium-subset.woff2') format('woff2');
+      }
+    </style>
+
     <!-- 防止配色闪烁：在任何渲染之前套用访客缓存 -->
     <script is:inline>
       (function () {

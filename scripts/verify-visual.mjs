@@ -203,6 +203,38 @@ try {
   check('卡片 = 16px 大圆角', px(shapes.card) === 16, `卡片 ${shapes.card}`);
 
   // =========================================================================
+  // 1b. 品牌字体：CSS 里写了字族名不代表字真的在。
+  // 子集没生成 / 文件名不对 / 构建顺序错，浏览器都会静默回落到系统字，
+  // 页面看起来"只是字体不太一样" —— 正是最难靠肉眼发现的那类回归。
+  // 所以量三件事：计算样式里的字族、字体是否已加载、以及实测字宽是否真的变了。
+  // =========================================================================
+  const font = await cdp.evaluate(`(async () => {
+    await document.fonts.ready;
+    const h1 = document.querySelector('.hero h1') || document.querySelector('h1');
+    if (!h1) return null;
+    const fam = getComputedStyle(h1).fontFamily;
+    const loaded = document.fonts.check('400 16px "LXGW WenKai"');
+    const c = document.createElement('canvas').getContext('2d');
+    // 探针必须用拉丁字母：汉字在 LXGW 与系统回落字体下都是 1em 等宽，
+    // 量不出差别 —— 第一版这里用 h1 的中文，导致断言假失败。
+    const probe = 'AzgW123ffi';
+    c.font = '48px "LXGW WenKai", monospace';
+    const a = c.measureText(probe).width;
+    c.font = '48px monospace';
+    const b = c.measureText(probe).width;
+    return { fam, loaded, glyphDiff: Math.abs(a - b) > 1, a: Math.round(a), b: Math.round(b) };
+  })()`);
+  if (font) {
+    check(
+      '标题命中品牌字体（子集已生成且真的在用）',
+      /lxgw wenkai/i.test(font.fam) && font.loaded === true && font.glyphDiff === true,
+      `family="${font.fam.slice(0, 34)}…" 已加载=${font.loaded} 拉丁探针字宽 ${font.a}px vs 回落 ${font.b}px`
+    );
+  } else {
+    check('标题命中品牌字体', false, '页面上找不到 h1，断言无法生效');
+  }
+
+  // =========================================================================
   // 2. 顶栏：禁止毛玻璃；且必须是页面过渡的锚点（不跟着淡入淡出）
   // =========================================================================
   const topbar = await cdp.evaluate(`(() => {

@@ -367,6 +367,17 @@ a.m3-chip:hover {
 /* ============================================================================
    排版工具类
    ============================================================================ */
+/* 大字档（display / headline）走展示字体；title / body / label 保持系统字 ——
+   正文换字体会牵动整篇行高与行数，收益不抵风险。 */
+.type-display-lg,
+.type-display-md,
+.type-display-sm,
+.type-headline-lg,
+.type-headline-md,
+.type-headline-sm {
+  font-family: var(--m3e-font-display);
+}
+
 .type-display-lg { font-size: var(--m3e-display-lg-size); line-height: var(--m3e-display-lg-line); font-weight: 400; }
 .type-display-md { font-size: var(--m3e-display-md-size); line-height: var(--m3e-display-md-line); font-weight: 400; }
 .type-headline-lg { font-size: var(--m3e-headline-lg-size); line-height: var(--m3e-headline-lg-line); font-weight: 400; }
@@ -406,6 +417,7 @@ a.m3-chip:hover {
 
 .prose h2 {
   margin-top: 2em;
+  font-family: var(--m3e-font-display);
   font-size: var(--m3e-headline-sm-size);
   line-height: var(--m3e-headline-sm-line);
   font-weight: 500;
@@ -414,6 +426,7 @@ a.m3-chip:hover {
 
 .prose h3 {
   margin-top: 1.6em;
+  font-family: var(--m3e-font-display);
   font-size: var(--m3e-title-lg-size);
   line-height: var(--m3e-title-lg-line);
   font-weight: 500;

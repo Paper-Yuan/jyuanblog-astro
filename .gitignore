@@ -18,5 +18,10 @@ dist/
 # wrangler 本地状态（pages dev 的临时物与本地 D1，4.5 MB，绝不该进版本库）
 .wrangler/
 
+# 品牌字体源文件（24 MB/个，构建输入；产物只是几十 KB 的子集）。
+# 由 npm run fonts:fetch 按固定版本 + sha256 拉取。OFL.txt 反过来要入库。
+src/assets/fonts/*.ttf
+src/assets/fonts/*.otf
+
 # 日志
 *.log
