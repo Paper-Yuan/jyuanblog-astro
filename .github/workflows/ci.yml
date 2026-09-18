@@ -103,9 +103,15 @@ jobs:
           # "duplicate column name: user_id" —— SQLite 没有 ADD COLUMN IF NOT EXISTS，
           # 迁移脚本只服务于**已有旧库**的升级路径。本地因为 .wrangler/state 里
           # 早就有库，这条路永远撞不到，只有 CI 的全新 runner 会暴露。
-          npx wrangler d1 execute blog-db --local --file=schema.sql
-          npx wrangler d1 execute blog-db --local --file=seed.sql
-          nohup npx wrangler dev --local --port 8797 --ip 127.0.0.1 \
+          #
+          # 单独一个 --persist-to：上面 "Security regression tests" 那步的 test/run.mjs
+          # 自己会建库灌种子，用的正是默认 .wrangler/state。共用就会在这里撞
+          # UNIQUE constraint failed: articles.slug。两条路各用各的库才可重复。
+          P=.wrangler/state/build
+          rm -rf "$P"
+          npx wrangler d1 execute blog-db --local --persist-to="$P" --file=schema.sql
+          npx wrangler d1 execute blog-db --local --persist-to="$P" --file=seed.sql
+          nohup npx wrangler dev --local --persist-to="$P" --port 8797 --ip 127.0.0.1 \
             --var ADMIN_PASSWORD:ci-only-not-a-secret \
             --var JWT_SECRET:ci-only-not-a-secret > /tmp/api.log 2>&1 &
           for i in $(seq 1 60); do
