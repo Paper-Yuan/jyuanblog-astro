@@ -45,7 +45,9 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # wrangler 4 起要求 Node >= 22（写 20 会在 Bundle check 直接退出）；
+          # 本机跑的是 24，这里取 22 LTS 作为两者的下界。
+          node-version: 22
           cache: npm
           cache-dependency-path: |
             package-lock.json
