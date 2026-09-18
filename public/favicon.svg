@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="JyuanBlog">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="千机志">
   <defs>
     <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#7c3aed"/>
@@ -6,6 +6,15 @@
     </linearGradient>
   </defs>
   <rect width="64" height="64" rx="16" fill="#fef7ff"/>
-  <circle cx="32" cy="32" r="20" fill="url(#g)"/>
-  <path d="M28 22h4v14a6 6 0 1 1-4-5.66V22zm10-2h4v12.5a5 5 0 1 1-4-4.9V20z" fill="#fff"/>
+  <circle cx="32" cy="32" r="21" fill="url(#g)"/>
+  <!-- 「千」= 丿 + 一 + 丨。
+       关键比例（照黑体字形量的）：首笔「丿」很平（约 8°），且**向右越过竖笔**
+       一直伸到右侧 —— 正是这一点把它和「4」区分开：「4」的斜笔到横笔处就收住了。
+       横笔同样左右都越过竖笔。
+       整体按 0.82 内缩，让笔画离圆形边缘留出余量：贴着边看起来像溢出而不是字。 -->
+  <g fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M19.3 23.4 L45.1 18.9"/>
+    <path d="M16.4 34.9 H47.6"/>
+    <path d="M32.8 19 V46.4"/>
+  </g>
 </svg>

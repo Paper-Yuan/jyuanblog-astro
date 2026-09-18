@@ -173,22 +173,37 @@ a:hover {
   padding: 0 var(--m3e-space-6);
 }
 
-/* ---- 卡片：靠表面层级表达高度，不用重阴影 -------------------------------- */
+/* ---- 卡片 ----------------------------------------------------------------
+   高度靠**色调层次**表达，不靠阴影 —— 这是 Shirone 明确的规范：
+   「深度主要来自色调表面层次，阴影是次要的」，且「不要用阴影作为主要深度线索」。
+   悬停时对到 M3 的 elevation level 2（surface-container-high），
+   同时保留 2px 上浮作为「可点」的触感提示（Expressive 允许，幅度小才够安静）。
+   ------------------------------------------------------------------------- */
 .m3-card {
   background: var(--surface-container-low);
   border-radius: var(--shape-corner-l);
   padding: var(--m3e-space-5);
   transition:
-    background var(--m3e-duration-medium) var(--m3e-easing-standard),
-    transform var(--m3e-duration-medium) var(--m3e-easing-emphasized-decelerate);
+    background var(--m3e-duration-short4) var(--m3e-easing-standard),
+    transform var(--m3e-duration-short4) var(--m3e-easing-emphasized-decelerate);
 }
 
 .m3-card--interactive:hover {
-  background: var(--surface-container);
+  background: var(--surface-container-high);
   transform: translateY(-2px);
 }
 
-/* ---- 按钮 ---------------------------------------------------------------- */
+/* 按下时回弹，确认"已受理"。用更短的时长，长按反馈会显得迟钝 */
+.m3-card--interactive:active {
+  transform: translateY(0);
+  transition-duration: var(--m3e-duration-short2);
+}
+
+/* ---- 按钮 ----------------------------------------------------------------
+   圆角 12px 是 M3E 的「核心控件形状」（--shape-corner-m），与输入框一致。
+   早期这里用的是胶囊（999px），那是 chip 的形状 —— 两者正好用反了：
+   胶囊让按钮看起来像标签，反而削弱了"这是个可点的控件"的暗示。
+   ------------------------------------------------------------------------- */
 .m3-button {
   position: relative;
   display: inline-flex;
@@ -198,7 +213,7 @@ a:hover {
   height: 40px;
   padding: 0 var(--m3e-space-5);
   border: none;
-  border-radius: var(--shape-corner-full);
+  border-radius: var(--shape-corner-m);
   background: var(--surface-container-high);
   color: var(--on-surface-variant);
   font-size: var(--m3e-label-lg-size);
@@ -208,21 +223,33 @@ a:hover {
   overflow: hidden;
   transition:
     background var(--m3e-duration-short) var(--m3e-easing-standard),
-    box-shadow var(--m3e-duration-short) var(--m3e-easing-standard);
+    /* 形状变形：按下时圆角收紧，松开回弹。M3E 用形状变化表达"状态切换"，
+       比单纯变色更有触感，但幅度要小才不显闹 */
+    border-radius var(--m3e-duration-short2) var(--m3e-easing-emphasized);
 }
 
+/* 形状变形：按下瞬间圆角从 12px 收到 8px */
+.m3-button:active {
+  border-radius: var(--shape-corner-s);
+}
+
+/* hover / press 的视觉反馈统一交给状态层，这里不再改底色 ——
+   否则「换底色 + 叠层」会叠到约 16%，比 M3 规定的 8% 重一倍 */
 .m3-button:hover {
-  background: var(--surface-container-highest);
   text-decoration: none;
+}
+
+/* 禁用态：M3 规定 opacity 0.38，且不接受指针事件 */
+.m3-button[disabled],
+.m3-button:disabled {
+  opacity: 0.38;
+  pointer-events: none;
+  cursor: not-allowed;
 }
 
 .m3-button--filled {
   background: var(--primary);
   color: var(--on-primary);
-}
-
-.m3-button--filled:hover {
-  background: color-mix(in srgb, var(--primary) 92%, var(--on-primary));
 }
 
 .m3-button--tonal {
@@ -237,18 +264,16 @@ a:hover {
   box-shadow: inset 0 0 0 1.5px var(--outline);
 }
 
-.m3-button--outlined:hover {
-  background: color-mix(in srgb, var(--primary) 8%, transparent);
-}
-
+/* 图标按钮保持圆形：M3 里 IconButton 的标准形态是圆形，
+   收敛成方角反而丢失识别度。形状契约里的 12px 针对的是文字按钮。 */
 .m3-button--icon {
   width: 40px;
   padding: 0;
-  border-radius: var(--shape-corner-full);
 }
 
 /* ---- 图标按钮的紧凑变体 -------------------------------------------------- */
 .m3-icon-btn {
+  position: relative;
   display: inline-grid;
   place-items: center;
   width: 40px;
@@ -258,31 +283,73 @@ a:hover {
   background: transparent;
   color: var(--on-surface-variant);
   cursor: pointer;
-  transition: background var(--m3e-duration-short) var(--m3e-easing-standard);
 }
 
-.m3-icon-btn:hover {
-  background: color-mix(in srgb, var(--on-surface) 8%, transparent);
-}
-
-/* ---- chip ---------------------------------------------------------------- */
+/* ---- chip ----------------------------------------------------------------
+   chip 的正确形状是**胶囊**（Shirone 规范里胶囊能力专属 chip 类控件）。
+   这里早期用的是 8px 小圆角，正好与按钮用反了：chip 本该是圆的，按钮本该是方的。
+   ------------------------------------------------------------------------- */
 .m3-chip {
   display: inline-flex;
   align-items: center;
   gap: var(--m3e-space-1);
   height: 32px;
   padding: 0 var(--m3e-space-3);
-  border-radius: var(--shape-corner-s);
+  border-radius: var(--shape-corner-full);
   background: var(--surface-container-high);
   color: var(--on-surface-variant);
   font-size: var(--m3e-label-md-size);
   white-space: nowrap;
+  transition: background var(--m3e-duration-short2) var(--m3e-easing-standard);
 }
 
+/* chip 不走状态层：M3 的 chip 在 hover 时本来就该换容器色，直接改底色更贴规范 */
 a.m3-chip:hover {
   background: var(--surface-container-highest);
   text-decoration: none;
   color: var(--on-surface);
+}
+
+/* ============================================================================
+   M3 状态层
+   ----------------------------------------------------------------------------
+   把 hover / focus / press 反馈做成**叠加层**，而不是直接替换组件背景色 ——
+   填充色与描边色因此各自保持语义不变（M3 规范的 state layer 就是这个意图）。
+
+   用 currentColor 叠加：文字色是 on-primary 的填充按钮会向亮侧提，
+   文字色是 on-surface-variant 的次级控件会向暗侧压，方向自动正确。
+   ============================================================================ */
+.m3-button::after,
+.m3-icon-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: currentColor;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--m3e-duration-short2) var(--m3e-easing-standard);
+}
+
+.m3-button:hover::after,
+.m3-icon-btn:hover::after {
+  opacity: 0.08;
+}
+
+.m3-button:focus-visible::after,
+.m3-icon-btn:focus-visible::after {
+  opacity: 0.1;
+}
+
+.m3-button:active::after,
+.m3-icon-btn:active::after {
+  opacity: 0.12;
+}
+
+/* 容器内含聚焦输入框时也高亮（用于 input 包裹在按钮式容器里的场景） */
+.m3-button:focus-within::after,
+.m3-icon-btn:focus-within::after {
+  opacity: 0.1;
 }
 
 /* ---- 输入框 -------------------------------------------------------------- */
@@ -335,8 +402,13 @@ a.m3-chip:hover {
 .prose {
   color: var(--on-surface);
   font-size: var(--m3e-body-lg-size);
-  line-height: 1.8;
+  /* 中文正文行高比西文需要更松：1.85 让密集汉字有呼吸空间。
+     过紧会显得压迫，过松则段落松散失焦。 */
+  line-height: 1.85;
   overflow-wrap: break-word;
+  /* 行宽约束：即便容器更宽，正文也只在舒适行长内排布。
+     中文对行宽比西文敏感 —— 太长会在换行时丢行。 */
+  max-width: var(--m3e-measure);
 }
 
 .prose > * + * {
@@ -441,4 +513,289 @@ a.m3-chip:hover {
 .prose th {
   background: var(--surface-container);
   font-weight: 600;
+}
+
+/* ============================================================================
+   动效：滚动驱动入场（零 JS）
+   ============================================================================
+   用 CSS scroll-driven animations 实现"滚到才浮现"，不引入任何 JavaScript ——
+   与项目「默认访客零 JS」的性能契约一致。三层保护，每层都保证内容可见：
+
+     1. @supports (animation-timeline: view())
+        不支持滚动时间轴的浏览器（如当前 Safari）整段跳过，元素保持默认可见。
+     2. @media (prefers-reduced-motion: no-preference)
+        系统开启"减少动效"时不挂动画。
+     3. :root:not(.motion-reduced)
+        访客在显示设置里手动关闭动效时同样不挂。
+
+   ★ 关键设计：元素**默认状态就是可见的**（不预设 opacity: 0），动画只负责
+     把它"演"进来。滚动动效最典型的翻车就是把初始状态设成透明，一旦动画没跑
+     （浏览器不支持、用户关了动效、脚本出错），内容就永久消失。这里不会。
+   ============================================================================ */
+@keyframes m3-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    :root:not(.motion-reduced) .m3-reveal {
+      /*
+       * 用长写属性而不是 `animation: linear both m3-rise-in view()` 简写。
+       * 简写里的 view() 是较新的语法，浏览器解析失败会**整条声明作废** ——
+       * 表现为 animation-name 静默回退成 none（动画完全不跑，但不会报错），
+       * 而相邻的 animation-range 因为是独立声明仍然生效，排查时极具迷惑性。
+       */
+      animation-name: m3-rise-in;
+      animation-timing-function: linear;
+      /* 滚动时间轴下必须有 auto：写 0s 会被当成"零时长动画"而瞬间跑完，
+         那样滚动进度就驱动不了它了 */
+      animation-duration: auto;
+      animation-fill-mode: both;
+      animation-timeline: view();
+      /* 在元素进入视口 0%→45% 的区间内演完。区间拉得太靠后，会出现
+         "已经滚到跟前了内容还是空的" */
+      animation-range: entry 0% entry 45%;
+    }
+
+    /*
+     * 错落入场：同一组卡片依次略晚开始，形成自上而下的节奏。
+     * 用 animation-range 的微调实现错落，而不是 animation-delay ——
+     * 滚动驱动动画里 delay 会被忽略（时间轴不是时钟，是滚动进度）。
+     * 所以这里把每张卡片的入场区间起点往后推一点，视觉上就是"依次浮现"。
+     * 幅度刻意很小（每张 2–4%），否则后面的卡片会明显迟到、显得拖沓。
+     *
+     * ★ 选择器是 `> .m3-reveal:nth-child(n)` 而不是 `> *:nth-child(n) .m3-reveal`：
+     *   ArticleCard 的根元素同时是容器的直接子元素**和** .m3-reveal 的载体，
+     *   写成后代选择器会一个都匹配不到（静默失效，没有任何报错）。
+     */
+    :root:not(.motion-reduced) .m3-stagger > .m3-reveal:nth-child(1) { animation-range: entry -2% entry 43%; }
+    :root:not(.motion-reduced) .m3-stagger > .m3-reveal:nth-child(2) { animation-range: entry 0% entry 45%; }
+    :root:not(.motion-reduced) .m3-stagger > .m3-reveal:nth-child(3) { animation-range: entry 2% entry 47%; }
+    :root:not(.motion-reduced) .m3-stagger > .m3-reveal:nth-child(4) { animation-range: entry 4% entry 49%; }
+    :root:not(.motion-reduced) .m3-stagger > .m3-reveal:nth-child(n + 5) { animation-range: entry 6% entry 51%; }
+  }
+}
+
+/* ============================================================================
+   图片色调辉光（Tonal Bloom）
+   ============================================================================
+   图片加载前用与主题色同源的模糊色块占位，加载后淡出、清晰图浮现。
+   替代"白块闪一下再蹦出图片"的廉价观感。
+
+   ★ 兜底方向必须是「动画不跑 → 图片正常可见」，绝不能反过来。
+     所以：img 永远是 opacity 1（不靠 JS/动画才显形），
+     ::before 辉光层的**默认 opacity 是 0**，由动画把它"演出来再淡掉"。
+     万一动画不支持或被禁，辉光层直接隐形，用户看到的只是一张普通图片 ——
+     这才是安全的降级方向。若反过来写成 img 初始 opacity:0，
+     则动画一旦没跑，封面就永久空白（滚动入场就踩过这个坑）。
+   ========================================================================= */
+.m3-bloom {
+  position: relative;
+}
+
+/*
+ * 辉光层。inset 负值 + scale 是为了让 blur 的边缘不露出底下的硬边
+ * （模糊会把内容向外扩，不放大就会在四周出现一圈半透明边）。
+ */
+.m3-bloom::before {
+  content: '';
+  position: absolute;
+  inset: -8%;
+  background: var(--tint, var(--surface-container-high));
+  filter: blur(var(--bloom-blur));
+  opacity: 0;
+  pointer-events: none;
+  /* 绝不加 z-index：绝对定位元素本身就画在静态图片之上，
+     显式 z-index 反而会盖住卡片里 stretched-link 的 ::after 覆盖层 */
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :root:not(.motion-reduced) .m3-bloom::before {
+    animation: m3-bloom-out var(--bloom-duration) var(--m3e-easing-standard) both;
+  }
+}
+
+@keyframes m3-bloom-out {
+  from {
+    opacity: var(--bloom-opacity);
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+/* ---- 顶栏随滚动抬起 ------------------------------------------------------
+   M3 的 top app bar 在内容滚动后从 surface 过渡到 surface-container，并加一层
+   高度。同样用滚动时间轴做，不挂滚动监听。放在全局样式而非组件 scoped 块里，
+   是因为 Astro 会给 scoped 选择器加属性并重命名 keyframes，
+   `:root:not(.motion-reduced) .topbar` 这种跨层选择器在 scoped 块里容易出意外。
+   ------------------------------------------------------------------------- */
+@keyframes m3-topbar-elevate {
+  from {
+    background: color-mix(in srgb, var(--surface) 96%, var(--primary) 4%);
+    box-shadow: none;
+  }
+
+  to {
+    /* 抬升到 M3 elevation level 2：混入更多主色（色调层次），
+       阴影只作为极轻的辅助分离，不做主要深度线索 */
+    background: color-mix(in srgb, var(--surface-container-high) 92%, var(--primary) 8%);
+    box-shadow: var(--m3e-elevation-2);
+  }
+}
+
+@supports (animation-timeline: scroll()) {
+  @media (prefers-reduced-motion: no-preference) {
+    :root:not(.motion-reduced) .topbar {
+      /* 同上：长写属性，简写里的 scroll() 会导致整条声明作废 */
+      animation-name: m3-topbar-elevate;
+      animation-timing-function: linear;
+      animation-duration: auto;
+      animation-fill-mode: both;
+      animation-timeline: scroll(root block);
+      /* 滚过 96px 后完全抬起。区间太短会显得抖动，太长则迟迟不给高度反馈 */
+      animation-range: 0 96px;
+    }
+  }
+}
+
+/* ============================================================================
+   页面过渡：跨文档 View Transitions（零 JS）
+   ============================================================================
+   Shirone 用 Swup 实现"翻页时外壳常驻、其余部分柔和过渡"。这里用
+   **CSS-only 的跨文档 View Transitions** 达到同样的观感，但完全不加载 JS ——
+   只需一条 `@view-transition { navigation: auto }`，浏览器（Chromium 系）就会在
+   同源导航时自动做快照过渡。不支持该特性的浏览器走普通导航，没有任何损失。
+
+   两个关键点：
+     1. 顶栏通过 `view-transition-name: topbar` 在导航之间**保持同一元素身份**，
+        于是它不会跟着内容一起淡出淡入（这就是"persistent shell"的效果）。
+        同名元素在同一页面内必须唯一，否则整条过渡会被浏览器忽略。
+     2. 减少动效时直接关掉过渡 —— 这里用 `animation: none` 而不是压时长，
+        因为 view transition 的动画由浏览器在伪元素上播放，压时长会留下残影。
+   ============================================================================ */
+
+@view-transition {
+  navigation: auto;
+}
+
+/* 旧页面淡出：轻微上移，让"内容被带走"有方向感 */
+@keyframes m3-page-out {
+  to {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+/* 新页面淡入：从下方浮起，与淡出方向呼应，形成连贯的"向上推进" */
+@keyframes m3-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+::view-transition-old(root) {
+  animation: m3-page-out var(--m3e-duration-short4) var(--m3e-easing-emphasized-accelerate) both;
+}
+
+::view-transition-new(root) {
+  animation: m3-page-in var(--m3e-duration-medium2) var(--m3e-easing-emphasized-decelerate) both;
+}
+
+/* 顶栏不参与内容过渡，只做极轻的交叉淡化（它自己是常驻的） */
+::view-transition-old(topbar),
+::view-transition-new(topbar) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @view-transition {
+    navigation: none;
+  }
+}
+
+:root.motion-reduced {
+  /* 访客在显示设置里关掉动效时同样禁用翻页过渡 */
+  view-transition-name: none;
+}
+
+/* ============================================================================
+   环境动效（ambient）：7–18s 的慢速装饰，只用于氛围，不用于交互反馈
+   ============================================================================
+   规范强调这类动效是"持续的环境装饰"，因此周期极长、幅度极小，
+   目的只是让静态页面不至于完全死寂。绝不能用在任何交互反馈上 ——
+   交互反馈必须在 150–400ms 内完成，否则会显得迟钝。
+   ============================================================================ */
+
+@keyframes m3-ambient-drift {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  50% {
+    transform: translate3d(0, -1.2%, 0) scale(1.012);
+  }
+
+  to {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+/* 壁纸层极缓慢地呼吸。只在横幅模式下生效（纯色模式没有背景图）。
+   注意这里不需要 @supports 守卫：animation 是普遍支持的，
+   真正的守卫是 prefers-reduced-motion 与访客手动开关。 */
+@media (prefers-reduced-motion: no-preference) {
+  :root:not(.motion-reduced)[data-wallpaper='banner'] body.has-wallpaper::before {
+    animation: m3-ambient-drift var(--m3e-duration-ambient-extra-long) var(--m3e-easing-linear) infinite;
+  }
+}
+
+
+/* ============================================================================
+   加载骨架屏
+   ============================================================================ */
+
+@keyframes m3-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton {
+  border-radius: var(--shape-corner-s);
+  background: linear-gradient(
+    90deg,
+    var(--surface-container) 25%,
+    var(--surface-container-high) 37%,
+    var(--surface-container) 63%
+  );
+  background-size: 400% 100%;
+  animation: m3-shimmer 1.4s linear infinite;
+}
+
+/* 骨架屏高度靠调用方给，这里只保证它不塌陷 */
+.skeleton-line {
+  height: 12px;
+}
+
+.skeleton-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--shape-corner-full);
+  flex-shrink: 0;
 }

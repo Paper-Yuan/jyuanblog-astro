@@ -24,7 +24,7 @@ export const GET: APIRoute = async () => {
 
   const entries = articles
     .map((a) => {
-      const url = `${SITE.url}/blog/${a.id}`;
+      const url = `${SITE.url}/blog/${a.slug}`;
       return `  <entry>
     <title type="text">${escapeXml(a.title)}</title>
     <link href="${url}" />

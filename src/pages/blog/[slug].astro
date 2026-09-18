@@ -9,12 +9,12 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
 import Icon from '@/components/Icon.astro';
 import Comments from '@/components/Comments.svelte';
 import { getAllArticles, getArticle, type Article } from '@/lib/api';
-import { renderMarkdown, formatDate, compactNumber } from '@/lib/format';
+import { renderMarkdown, formatDate, compactNumber, placeholderTint } from '@/lib/format';
 import { SITE } from '@/config/site';
 
 export async function getStaticPaths() {
   const articles = await getAllArticles();
-  return articles.map((a) => ({ params: { slug: String(a.id) }, props: { article: a } }));
+  return articles.map((a) => ({ params: { slug: String(a.slug) }, props: { article: a } }));
 }
 
 interface Props {
@@ -42,7 +42,7 @@ const jsonLd = {
   dateModified: article.updatedAt,
   author: { '@type': 'Person', name: article.author.name },
   publisher: { '@type': 'Organization', name: SITE.title },
-  mainEntityOfPage: { '@type': 'WebPage', '@id': `${SITE.url}/blog/${article.id}` },
+  mainEntityOfPage: { '@type': 'WebPage', '@id': `${SITE.url}/blog/${article.slug}` },
   ...(article.coverImage ? { image: article.coverImage } : {}),
   ...(article.category ? { articleSection: article.category.name } : {}),
   ...(article.tags.length ? { keywords: article.tags.map((t) => t.name).join(', ') } : {}),
@@ -84,7 +84,9 @@ const jsonLd = {
       )}
 
       {article.coverImage && (
-        <img class="cover" src={article.coverImage} alt={article.title} loading="eager" />
+        <div class="cover-wrap m3-bloom" style={`--tint:${placeholderTint(article.title)}`}>
+          <img class="cover" src={article.coverImage} alt={article.title} loading="eager" />
+        </div>
       )}
 
       <div class="prose" set:html={html} />
@@ -92,7 +94,7 @@ const jsonLd = {
       <!-- 上下篇 -->
       <nav class="adjacent" aria-label="相邻文章">
         {prev ? (
-          <a href={`/blog/${prev.id}`} class="adj m3-card">
+          <a href={`/blog/${prev.slug}`} class="adj m3-card">
             <span class="dir type-label-md"><Icon name="arrow-left" size={14} /> 上一篇</span>
             <span class="adj-title type-title-md">{prev.title}</span>
           </a>
@@ -100,7 +102,7 @@ const jsonLd = {
           <span />
         )}
         {next ? (
-          <a href={`/blog/${next.id}`} class="adj m3-card next">
+          <a href={`/blog/${next.slug}`} class="adj m3-card next">
             <span class="dir type-label-md">下一篇 <Icon name="arrow-right" size={14} /></span>
             <span class="adj-title type-title-md">{next.title}</span>
           </a>
@@ -166,10 +168,18 @@ const jsonLd = {
     gap: var(--m3e-space-6);
   }
 
-  @media (min-width: 1100px) {
+  /*
+   * 侧栏 TOC 只在 xl（>= 1200px）出现，整块版心按
+   * 正文列 + TOC + 间隙 = 840 + 240 + 24 = 1104 反推，取 1120 留余量。
+   * 关键在于**正文列是那个不可动的量**：若沿用 1100px 断点 + 1080px 版心，
+   * 正文列只剩 816px，反而跌破了规范 840dp 的下界 —— 加个侧栏把阅读体验
+   * 弄差了，这是最不易察觉又最伤阅读的一类回归。
+   * 宽度不够宁可不显示侧栏，也不挤压正文。
+   */
+  @media (min-width: 1200px) {
     .wrap:has(.toc-wrap) {
       grid-template-columns: minmax(0, 1fr) 240px;
-      max-width: 1080px;
+      max-width: 1120px;
       margin: 0 auto;
     }
   }
@@ -215,10 +225,30 @@ const jsonLd = {
     margin-bottom: var(--m3e-space-6);
   }
 
-  .cover {
-    width: 100%;
+  /*
+   * 头图容器。锁死 16:9 是为了把 CLS 压到 0：
+   * 图片到达前容器已有确定高度，不会把下面的正文整体推下去。
+   * 代价是比原图更方的图会被裁 —— 与卡片保持同一比例，视觉上更统一。
+   */
+  .cover-wrap {
+    position: relative;
+    overflow: hidden;
+    aspect-ratio: 16 / 9;
     border-radius: var(--shape-corner-l);
     margin-bottom: var(--m3e-space-6);
+    background: var(--tint, var(--surface-container-high));
+  }
+
+  /* 暗色下 placeholderTint 的浅色会照出一块近白，与暗表面混合压暗 */
+  :global(:root.dark) .cover-wrap {
+    background: color-mix(in srgb, var(--tint, var(--surface-container-high)) 22%, var(--surface-container-high));
+  }
+
+  .cover {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
 
   .adjacent {
@@ -259,7 +289,9 @@ const jsonLd = {
     display: none;
   }
 
-  @media (min-width: 1100px) {
+  /* 断点必须与上面 .wrap 的栅格断点一致：否则会出现"栅格只有一列、
+     TOC 却已显示"，TOC 会独自撑满整行，像一块走错位置的卡片。 */
+  @media (min-width: 1200px) {
     .toc-wrap {
       display: block;
     }

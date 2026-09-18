@@ -1,0 +1,103 @@
+---
+/**
+ * 分类部件 —— 可折叠的分类列表。
+ *
+ * 用原生 `<details>` 做折叠：无需一行 JS，键盘与屏幕阅读器原生可用
+ * （`<details>` 自带展开/收起语义与焦点行为，比手写 aria 更不容易出错）。
+ */
+import { getCategories } from '@/lib/api';
+import Icon from '../Icon.astro';
+
+const categories = await getCategories().catch(() => []);
+const total = categories.reduce((s, c) => s + (c.articleCount ?? 0), 0);
+---
+
+{
+  categories.length > 0 && (
+    <details class="m3-card widget categories" open>
+      <summary class="head">
+        <span class="type-label-lg">分类</span>
+        <span class="count type-label-md">{categories.length}</span>
+      </summary>
+      <ul class="list">
+        {categories.map((c) => (
+          <li>
+            <a href={`/categories/${c.slug}`}>
+              <Icon name="folder" size={14} />
+              <span class="text">{c.name}</span>
+              <span class="n type-label-md">{c.articleCount ?? 0}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+      <p class="foot type-body-sm">共 {total} 篇文章</p>
+    </details>
+  )
+}
+
+<style>
+  .widget {
+    border: 1px solid var(--outline-variant);
+  }
+
+  /* summary 默认是 display: list-item（带三角标），这里换成自己的箭头 */
+  .head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    list-style: none;
+    color: var(--on-surface-variant);
+  }
+
+  .head::-webkit-details-marker {
+    display: none;
+  }
+
+  .count {
+    padding: 0 var(--m3e-space-2);
+    border-radius: var(--shape-corner-full);
+    background: var(--surface-container-high);
+  }
+
+  .list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    list-style: none;
+    margin-top: var(--m3e-space-3);
+  }
+
+  .list a {
+    display: flex;
+    align-items: center;
+    gap: var(--m3e-space-2);
+    padding: var(--m3e-space-2);
+    border-radius: var(--shape-corner-s);
+    color: var(--on-surface);
+    transition: background var(--m3e-duration-short) var(--m3e-easing-standard);
+  }
+
+  .list a:hover {
+    background: var(--surface-container-high);
+    text-decoration: none;
+  }
+
+  .text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .n {
+    color: var(--on-surface-variant);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .foot {
+    margin: var(--m3e-space-3) 0 0;
+    color: var(--on-surface-variant);
+  }
+</style>

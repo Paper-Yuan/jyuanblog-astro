@@ -1,5 +1,10 @@
+# 允许抓取公开内容
 User-agent: *
 Allow: /
+# 搜索索引是给站内检索用的，不是给外部爬虫抓的
 Disallow: /pagefind/
+# 管理后台与 API 不属于公开内容
+Disallow: /admin/
+Disallow: /api/
 
 Sitemap: https://jyuanblog.cc.cd/sitemap-index.xml

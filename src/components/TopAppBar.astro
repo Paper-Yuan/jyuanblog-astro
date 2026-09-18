@@ -14,7 +14,7 @@ const isActive = (href: string) =>
 <header class="topbar">
   <div class="m3-layout inner">
     <a href="/" class="brand" aria-label={`${SITE.title} 首页`}>
-      <span class="brand-mark" aria-hidden="true">J</span>
+      <span class="brand-mark" aria-hidden="true">千</span>
       <span class="brand-text">{SITE.title}</span>
     </a>
 
@@ -33,6 +33,9 @@ const isActive = (href: string) =>
       <a href="/search" class="m3-icon-btn" aria-label="搜索">
         <Icon name="search" />
       </a>
+
+      <!-- 访客账号入口。登录态由客户端脚本按需替换文案（静态页无会话） -->
+      <a href="/login" class="nav-link nav-account" data-account-link>登录</a>
 
       <!-- 显示设置：Svelte 岛，点击才加载 -->
       <button
@@ -80,6 +83,28 @@ const isActive = (href: string) =>
     panel.toggleAttribute('hidden', !open);
     trigger.setAttribute('aria-expanded', String(open));
   });
+
+  /**
+   * 顶栏账号入口：已登录则显示用户名并指向个人资料，未登录显示"登录"。
+   *
+   * 这段刻意写在顶栏而不是 Svelte 岛里 —— 顶栏在每一页都会渲染，
+   * 为了一个文字替换去水合一个岛不划算（会破坏"默认访客零 JS"的契约）。
+   * 这里只读 localStorage 改两个属性，代价接近于零。
+   */
+  (function () {
+    const link = document.querySelector('[data-account-link]');
+    if (!link) return;
+    const KEY = 'jyuanblog:user-profile';
+    let user = null;
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (raw) user = JSON.parse(raw);
+    } catch {}
+    if (!user || !user.username) return;
+    link.textContent = user.username;
+    link.setAttribute('href', user.role === 9 ? '/admin/' : '/');
+    link.setAttribute('title', user.role === 9 ? '进入管理后台' : '已登录');
+  })();
 </script>
 
 <style>
@@ -88,9 +113,14 @@ const isActive = (href: string) =>
     top: 0;
     z-index: 50;
     height: var(--m3e-topbar-h);
-    background: color-mix(in srgb, var(--surface) 88%, transparent);
-    backdrop-filter: blur(12px);
+    /* 色调表面层次而非玻璃拟态。Shirone 规范明确要求"严禁毛玻璃效果"——
+       背景模糊会让正文在滚动经过时变得不可读，而顶栏承载导航文字。
+       这里改用「不透明的 surface 派生色」，滚动后由动画抬到更高的层次。 */
+    background: color-mix(in srgb, var(--surface) 96%, var(--primary) 4%);
     border-bottom: 1px solid var(--outline-variant);
+    /* 让顶栏在跨文档导航时保持同一元素身份 —— 翻页时内容区过渡，顶栏不动。
+       这就是 Shirone 说的 persistent shell 观感。同名元素每页必须唯一。 */
+    view-transition-name: topbar;
   }
 
   .inner {
@@ -149,6 +179,12 @@ const isActive = (href: string) =>
     background: color-mix(in srgb, var(--on-surface) 8%, transparent);
     color: var(--on-surface);
     text-decoration: none;
+  }
+
+  /* 按下反馈比 hover 重一档，且用最短时长才跟手 */
+  .nav-link:active {
+    background: color-mix(in srgb, var(--on-surface) 12%, transparent);
+    transition-duration: var(--m3e-duration-short1);
   }
 
   .nav-link[aria-current='page'] {

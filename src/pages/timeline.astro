@@ -1,0 +1,330 @@
+---
+/**
+ * 时间线 —— 以节点流展示经历与里程碑。
+ *
+ * 数据与配置都在 `src/config/timeline.ts` / `src/data/timeline.ts`：
+ * 页面本身不含内容，改内容不用动这里。
+ *
+ * ★ enable: false 时**构建期就不产出这一页**（getStaticPaths 返回空数组），
+ *   而不是产出后再运行时报 404 —— 产物里干脆没有文件，更彻底。
+ */
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import Icon from '@/components/Icon.astro';
+import { TIMELINE } from '@/config/timeline';
+import { timelineData, type TimelineItem } from '@/data/timeline';
+import { safeUrl } from '@/lib/url';
+
+export function getStaticPaths() {
+  return TIMELINE.enable ? [{ params: {} }] : [];
+}
+
+/** 过滤：按标题禁用；再按 order 排序 */
+const disabled = new Set<string>(TIMELINE.disabledTitles);
+const items: TimelineItem[] = timelineData
+  .filter((i) => !disabled.has(i.title))
+  .sort((a, b) => {
+    // date 是自由文本（可能是 "2026.08" 或 "2025.03 – 至今"），
+    // 因此不能用 Date 解析。按**字符串倒序**近似即可 ——
+    // 本项目采用 "YYYY.MM" 起始的写法，字典序与时间序一致。
+    // 若数据改用其它日期写法，这里需要相应调整（见 timeline.ts 注释）。
+    return TIMELINE.order === 'desc' ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date);
+  });
+
+/** 分类 key → 配置（用于取标签与图标） */
+const catMap = new Map(TIMELINE.categories.map((c) => [c.key, c]));
+---
+
+<BaseLayout title="时间线" description="以节点流展示的经历与里程碑">
+  <header class="head">
+    <h1 class="type-headline-lg">时间线</h1>
+    <p class="sub type-body-lg">一路做过的项目与经历，按时间倒序</p>
+  </header>
+
+  <!-- 分类筛选片。用 button 而非链接：它是同页筛选，不是导航 -->
+  <div class="filters" role="group" aria-label="按分类筛选">
+    <button type="button" class="m3-chip is-active" data-filter="all" aria-pressed="true">全部</button>
+    {
+      TIMELINE.categories.map((c) => (
+        <button type="button" class="m3-chip" data-filter={c.key} aria-pressed="false">
+          <Icon name={c.icon} size={14} /> {c.label}
+        </button>
+      ))
+    }
+  </div>
+
+  <ol class="stream" id="stream">
+    {
+      items.map((item) => {
+        const cat = catMap.get(item.category);
+        return (
+          <li class="node" data-category={item.category}>
+            <div class="marker" aria-hidden="true">
+              <Icon name={item.icon ?? cat?.icon ?? 'flag'} size={16} />
+            </div>
+
+            <div class={`m3-card body m3-reveal${item.featured ? ' is-featured' : ''}`}>
+              <div class="row">
+                <span class="date type-label-lg">{item.date}</span>
+                {cat && <span class="cat m3-chip">{cat.label}</span>}
+                {item.featured && <span class="star type-label-md">重点</span>}
+              </div>
+
+              <h2 class="title type-title-lg">{item.title}</h2>
+              {item.subtitle && <p class="subtitle type-label-lg">{item.subtitle}</p>}
+              {
+                item.location && (
+                  <p class="where type-body-sm">
+                    <Icon name="map-pin" size={14} /> {item.location}
+                  </p>
+                )
+              }
+
+              {item.description && <p class="desc type-body-md">{item.description}</p>}
+
+              {
+                item.highlights && item.highlights.length > 0 && (
+                  <ul class="highlights type-body-sm">
+                    {item.highlights.map((h) => (
+                      <li>{h}</li>
+                    ))}
+                  </ul>
+                )
+              }
+
+              {
+                item.tags && item.tags.length > 0 && (
+                  <div class="tags">
+                    {item.tags.map((t) => (
+                      <span class="m3-chip">{t}</span>
+                    ))}
+                  </div>
+                )
+              }
+
+              {
+                item.links && item.links.length > 0 && (
+                  <div class="links">
+                    {item.links.map((l) => {
+                      /* ★ 协议白名单：数据文件里万一写成 javascript: 就是 XSS 入口。
+                         safeUrl() 用 URL 解析比对 protocol，比 startsWith 可靠
+                         （'httpx:' / 'http:javascript:' 能骗过后者）。 */
+                      const href = safeUrl(l.url);
+                      return href ? (
+                        <a class="m3-button m3-button--outlined" href={href} rel="noopener noreferrer" target="_blank">
+                          {l.icon && <Icon name={l.icon} size={14} />} {l.label}
+                        </a>
+                      ) : null;
+                    })}
+                  </div>
+                )
+              }
+            </div>
+          </li>
+        );
+      })
+    }
+  </ol>
+
+  <p class="empty" hidden>该分类下暂无条目。</p>
+</BaseLayout>
+
+<!--
+  筛选脚本。Astro 会把非 is:inline 的脚本块打包成同源外部模块，
+  因此不需要 CSP 哈希（script-src 'self' 已放行）。
+  交互逻辑很小（切 class + 显隐），不值得为之水合一个 Svelte 岛。
+
+  ⚠️ 这段注释里**绝不能出现 script 开标签的字面文本**（含尖括号那种写法）。
+     构建期的 CSP 哈希提取是用正则扫 HTML 的，注释里的伪标签会被当成真的
+     内联脚本，于是它哈希了注释、却漏掉了真正的脚本 —— 结果线上脚本被 CSP
+     拦下，而构建完全成功、毫无报错。这里踩过一次，merge-admin.mjs 已加保护。
+-->
+<script>
+  const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('.filters [data-filter]'));
+  const nodes = Array.from(document.querySelectorAll<HTMLLIElement>('#stream .node'));
+  const emptyMsg = document.querySelector<HTMLParagraphElement>('.empty');
+
+  function apply(filter: string) {
+    let shown = 0;
+    for (const n of nodes) {
+      const hit = filter === 'all' || n.dataset.category === filter;
+      n.hidden = !hit;
+      if (hit) shown++;
+    }
+    if (emptyMsg) emptyMsg.hidden = shown > 0;
+
+    for (const b of buttons) {
+      const active = b.dataset.filter === filter;
+      b.classList.toggle('is-active', active);
+      b.setAttribute('aria-pressed', String(active));
+    }
+  }
+
+  for (const b of buttons) {
+    b.addEventListener('click', () => apply(b.dataset.filter ?? 'all'));
+  }
+</script>
+
+<style>
+  .head {
+    padding: var(--m3e-space-5) 0 var(--m3e-space-4);
+  }
+
+  .sub {
+    margin-top: var(--m3e-space-3);
+    color: var(--on-surface-variant);
+  }
+
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--m3e-space-2);
+    margin-bottom: var(--m3e-space-6);
+  }
+
+  .filters .m3-chip {
+    cursor: pointer;
+    border: 1px solid var(--outline-variant);
+    background: transparent;
+    font: inherit;
+  }
+
+  .filters .is-active {
+    background: var(--secondary-container);
+    color: var(--on-secondary-container);
+    border-color: transparent;
+  }
+
+  /* ---- 节点流 ------------------------------------------------------------
+     左侧一条竖线串起所有节点。用 ::before 画在 .stream 上而不是每个节点上，
+     这样节点之间的间距不会把线打断。
+     --------------------------------------------------------------------- */
+  .stream {
+    position: relative;
+    list-style: none;
+    padding-left: 40px;
+  }
+
+  .stream::before {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 8px;
+    bottom: 8px;
+    width: 2px;
+    background: var(--outline-variant);
+  }
+
+  .node {
+    position: relative;
+    margin-bottom: var(--m3e-space-5);
+  }
+
+  .node[hidden] {
+    display: none;
+  }
+
+  .marker {
+    position: absolute;
+    left: -40px;
+    top: var(--m3e-space-5);
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--shape-corner-full);
+    background: var(--primary);
+    color: var(--on-primary);
+    /* 描边与页面同色，让节点"压"在竖线上而不是被线穿过 */
+    box-shadow: 0 0 0 4px var(--surface);
+    z-index: 1;
+  }
+
+  .body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--m3e-space-2);
+    border: 1px solid var(--outline-variant);
+  }
+
+  /* 重点条目用容器色而非描边强调：不靠彩色左条（那会和节点色打架） */
+  .body.is-featured {
+    background: var(--surface-container);
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--m3e-space-2);
+  }
+
+  .date {
+    color: var(--primary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .star {
+    padding: 2px 8px;
+    border-radius: var(--shape-corner-s);
+    background: var(--tertiary-container);
+    color: var(--on-tertiary-container);
+    font-weight: 600;
+  }
+
+  .title {
+    margin: 0;
+  }
+
+  .subtitle {
+    margin: 0;
+    color: var(--on-surface-variant);
+  }
+
+  .where {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0;
+    color: var(--on-surface-variant);
+  }
+
+  .desc {
+    margin: 0;
+    color: var(--on-surface-variant);
+  }
+
+  .highlights {
+    margin: 0;
+    padding-left: 1.2em;
+    color: var(--on-surface-variant);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .tags,
+  .links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--m3e-space-2);
+    margin-top: var(--m3e-space-1);
+  }
+
+  .empty {
+    padding: var(--m3e-space-8) 0;
+    text-align: center;
+    color: var(--on-surface-variant);
+  }
+
+  @media (max-width: 640px) {
+    .stream {
+      padding-left: 0;
+    }
+
+    /* 窄屏收起竖线与节点，避免 40px 缩进把正文挤成窄条 */
+    .stream::before,
+    .marker {
+      display: none;
+    }
+  }
+</style>

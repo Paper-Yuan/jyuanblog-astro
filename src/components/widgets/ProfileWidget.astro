@@ -1,0 +1,102 @@
+---
+/**
+ * 名片部件 —— 头像、称呼、简介与社交入口。
+ *
+ * 数据全部来自构建期配置（`SITE`），零客户端成本。
+ * 头像若未配置则回退为首字色块，不请求任何外部图片。
+ */
+import { SITE } from '@/config/site';
+import { socialLinks } from '@/config/social';
+---
+
+<div class="m3-card widget profile">
+  {
+    SITE.avatar ? (
+      <img class="avatar-img" src={SITE.avatar} alt={`${SITE.author} 的头像`} width="64" height="64" />
+    ) : (
+      <span class="avatar-fallback" aria-hidden="true">{SITE.author.slice(0, 1)}</span>
+    )
+  }
+
+  <p class="name type-title-md">{SITE.author}</p>
+  <p class="bio type-body-sm">{SITE.subtitle}</p>
+
+  {
+    socialLinks.length > 0 && (
+      <ul class="social">
+        {socialLinks.map((l) => (
+          <li>
+            <a href={l.url} rel="me noopener noreferrer" target="_blank" title={l.label}>
+              {l.label}
+            </a>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+</div>
+
+<style>
+  .profile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: var(--m3e-space-2);
+    border: 1px solid var(--outline-variant);
+  }
+
+  .avatar-img,
+  .avatar-fallback {
+    width: 64px;
+    height: 64px;
+    border-radius: var(--shape-corner-full);
+    margin-bottom: var(--m3e-space-1);
+  }
+
+  .avatar-img {
+    object-fit: cover;
+  }
+
+  .avatar-fallback {
+    display: grid;
+    place-items: center;
+    background: linear-gradient(135deg, var(--primary), var(--tertiary));
+    color: var(--on-primary);
+    font-size: var(--m3e-headline-sm-size);
+    font-weight: 700;
+  }
+
+  .name {
+    margin: 0;
+  }
+
+  .bio {
+    color: var(--on-surface-variant);
+    margin: 0;
+  }
+
+  .social {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--m3e-space-2);
+    list-style: none;
+    margin-top: var(--m3e-space-2);
+  }
+
+  .social a {
+    display: inline-block;
+    padding: 2px var(--m3e-space-3);
+    border-radius: var(--shape-corner-full);
+    background: var(--surface-container-high);
+    color: var(--on-surface-variant);
+    font-size: var(--m3e-label-md-size);
+    transition: color var(--m3e-duration-short) var(--m3e-easing-standard);
+  }
+
+  .social a:hover {
+    color: var(--primary);
+    text-decoration: none;
+  }
+</style>

@@ -1,0 +1,24 @@
+---
+/**
+ * 登录页。
+ *
+ * 没有把页面做成客户端渲染 —— 表单本身是 Svelte 岛（client:load），
+ * 但页面壳仍是静态 HTML，首屏不需要等 JS 就能看到结构。
+ */
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import AuthForm from '@/components/AuthForm.svelte';
+---
+
+<BaseLayout title="登录" description="登录千机志账号">
+  <div class="wrap">
+    <AuthForm mode="login" client:load />
+  </div>
+</BaseLayout>
+
+<style>
+  .wrap {
+    max-width: var(--m3e-reading-max);
+    margin: 0 auto;
+    padding: var(--m3e-space-8) 0;
+  }
+</style>

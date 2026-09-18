@@ -33,7 +33,7 @@ const articles = all.filter((a) => a.category?.id === category.id);
     articles.length === 0 ? (
       <p class="empty">该分类下还没有文章。</p>
     ) : (
-      <div class="grid">
+      <div class="grid m3-stagger">
         {articles.map((a) => (
           <ArticleCard article={a} />
         ))}

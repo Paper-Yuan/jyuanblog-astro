@@ -1,0 +1,93 @@
+---
+/**
+ * 站点数据网格 —— 文章数、总字数、分类数、标签数、运行天数。
+ *
+ * ★ 全部在构建期算好（这是静态站点最大的优势）：
+ *   浏览器只拿到最终的几个数字，没有任何统计代码。
+ *   若改成客户端 fetch 统计，等于为了几个数字增加一次请求和一段 JS。
+ */
+import { getArticles, getCategories, getTags } from '@/lib/api';
+import { countWords } from '@/lib/format';
+import { SITE } from '@/config/site';
+
+const [all, categories, tags] = await Promise.all([
+  // 取全部已发布文章（用于总字数与篇数）
+  getArticles({ page: 1, pageSize: 100 }).then((d) => d.list).catch(() => []),
+  getCategories().catch(() => []),
+  getTags().catch(() => []),
+]);
+
+// 列表接口不含正文，因此总字数只能用摘要估算 —— 如实标注为"约"，
+// 不要假装是精确值。若将来需要精确字数，应在 Worker 侧加一个聚合端点。
+const approxWords = all.reduce((sum, a) => sum + countWords(a.summary ?? ''), 0);
+
+const start = new Date(SITE.startDate ?? '2024-01-01');
+const runningDays = Math.max(1, Math.ceil((Date.now() - start.getTime()) / 86_400_000));
+
+const stats = [
+  { label: '文章', value: all.length },
+  { label: '分类', value: categories.length },
+  { label: '标签', value: tags.length },
+  { label: '运行天数', value: runningDays },
+];
+---
+
+<div class="m3-card widget stats">
+  <p class="head type-label-lg">站点数据</p>
+  <dl class="grid">
+    {
+      stats.map((s) => (
+        <div class="cell">
+          <dt class="label type-label-md">{s.label}</dt>
+          <dd class="value type-title-lg">{s.value}</dd>
+        </div>
+      ))
+    }
+  </dl>
+  <p class="note type-body-sm">约 {approxWords} 字（按摘要估算）</p>
+</div>
+
+<style>
+  .stats {
+    border: 1px solid var(--outline-variant);
+  }
+
+  .head {
+    margin: 0 0 var(--m3e-space-4);
+    color: var(--on-surface-variant);
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--m3e-space-3);
+    margin: 0;
+  }
+
+  .cell {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--m3e-space-3);
+    border-radius: var(--shape-corner-m);
+    background: var(--surface-container-high);
+  }
+
+  .label {
+    color: var(--on-surface-variant);
+    margin: 0;
+  }
+
+  .value {
+    margin: 0;
+    color: var(--primary);
+    font-weight: 600;
+    /* 等宽数字：否则数字变化时列宽会跳 */
+    font-variant-numeric: tabular-nums;
+  }
+
+  .note {
+    margin: var(--m3e-space-3) 0 0;
+    color: var(--on-surface-variant);
+  }
+</style>

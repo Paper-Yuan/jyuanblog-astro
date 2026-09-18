@@ -31,7 +31,7 @@ const totalViews = articles.reduce((sum, a) => sum + a.viewCount, 0);
             <ul class="items">
               {g.items.map((a) => (
                 <li>
-                  <a href={`/blog/${a.id}`} class="item">
+                  <a href={`/blog/${a.slug}`} class="item">
                     <span class="date type-body-sm">{formatDate(a.createdAt).slice(5)}</span>
                     <span class="title">{a.title}</span>
                     {a.category && <span class="m3-chip cat">{a.category.name}</span>}

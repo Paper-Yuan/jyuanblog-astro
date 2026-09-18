@@ -20,15 +20,18 @@ interface Props {
 
 const { article, feature = false } = Astro.props;
 
-const href = `/blog/${article.id}`;
+const href = `/blog/${article.slug}`;
 const tint = placeholderTint(article.title);
 // 显式拼接类名而非 class:* 指令：astro check 对指令的元素类型推断有误报
-const cardClass = `card m3-card m3-card--interactive${feature ? ' feature' : ''}`;
+// m3-reveal 挂滚动入场动效（纯 CSS，见 styles/main.css）
+const cardClass = `card m3-card m3-card--interactive m3-reveal${feature ? ' feature' : ''}`;
 const titleClass = 'title';
 ---
 
 <article class={cardClass}>
-  <div class="cover" style={`--tint:${tint}`}>
+  <!-- m3-bloom：加载前用主题色同源的模糊色块占位，图片到达后淡出。
+       占位色由 --tint 给出（placeholderTint 从标题派生、跟随主题色相）。 -->
+  <div class="cover m3-bloom" style={`--tint:${tint}`}>
     {
       article.coverImage ? (
         <img src={article.coverImage} alt={article.title} loading="lazy" decoding="async" />
@@ -115,6 +118,8 @@ const titleClass = 'title';
     width: 100%;
     height: 100%;
     object-fit: cover;
+    /* 封面缩放略微慢于卡片上浮：两者若同时到位会显得"一次性弹开"，
+       稍慢一点让放大像是被卡片带动的，观感更连贯。 */
     transition: transform var(--m3e-duration-long) var(--m3e-easing-emphasized-decelerate);
   }
 
@@ -173,12 +178,18 @@ const titleClass = 'title';
     line-height: var(--m3e-title-lg-line);
     font-weight: 600;
     color: var(--on-surface);
-    transition: color var(--m3e-duration-short) var(--m3e-easing-standard);
+    transition: color var(--m3e-duration-short4) var(--m3e-easing-standard);
     display: -webkit-box;
     -webkit-line-clamp: 2;
     line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+  }
+
+  /* 悬停时标题染成主题色。卡片是 stretched-link（整卡可点），但视觉上只有
+     标题是链接，需要一个明确的指向信号 */
+  .card:hover .title {
+    color: var(--primary);
   }
 
 

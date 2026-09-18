@@ -4,31 +4,14 @@
  *
  * 不引入 astro-icon / iconify（省一个依赖与一次客户端查询），
  * 只内联站点真正用到的一小撮图标。
+ *
+ * 名字类型定义在 `src/lib/icons.ts`，供配置/数据文件共用 ——
+ * 这样拼错图标名会在构建期报错，而不是渲染出一个空的 <path>（静默失效）。
  */
+import type { IconName } from '@/lib/icons';
+
 interface Props {
-  name:
-    | 'menu'
-    | 'close'
-    | 'search'
-    | 'settings'
-    | 'sun'
-    | 'moon'
-    | 'auto'
-    | 'home'
-    | 'archive'
-    | 'tag'
-    | 'folder'
-    | 'rss'
-    | 'github'
-    | 'arrow-left'
-    | 'arrow-right'
-    | 'clock'
-    | 'eye'
-    | 'comment'
-    | 'heart'
-    | 'grid'
-    | 'list'
-    | 'link';
+  name: IconName;
   size?: number;
   label?: string;
 }
@@ -61,6 +44,17 @@ const PATHS: Record<string, string> = {
   grid: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
   list: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01',
   link: 'M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7',
+  flag: 'M4 15s1-1 4-1 5 2 8 2 4-1 4-1V4s-1 1-4 1-5-2-8-2-4 1-4 1ZM4 22v-7',
+  code: 'M16 18l6-6-6-6M8 6l-6 6 6 6',
+  work: 'M20 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2ZM16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2',
+  'map-pin': 'M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0ZM12 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z',
+  music: 'M9 18V5l12-2v13M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM21 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z',
+  play: 'M6 4l14 8-14 8Z',
+  pause: 'M8 4h3v16H8zM13 4h3v16h-3z',
+  'skip-back': 'M19 20 9 12l10-8v16ZM5 19V5',
+  'skip-forward': 'M5 4l10 8-10 8V4ZM19 5v14',
+  volume: 'M11 5 6 9H2v6h4l5 4V5ZM16 9a4 4 0 0 1 0 6M19 6a8 8 0 0 1 0 12',
+  calendar: 'M3 5h18v16H3zM3 10h18M8 3v4M16 3v4',
 };
 ---
 

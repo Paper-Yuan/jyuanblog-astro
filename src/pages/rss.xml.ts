@@ -17,7 +17,7 @@ export const GET: APIRoute = async () => {
         title: a.title,
         description: a.summary || excerptFrom(detail.content),
         pubDate: new Date(a.createdAt),
-        link: `/blog/${a.id}`,
+        link: `/blog/${a.slug}`,
         categories: [...(a.category ? [a.category.name] : []), ...a.tags.map((t) => t.name)],
         author: a.author.name,
       };

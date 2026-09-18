@@ -78,13 +78,45 @@
   --m3e-space-10: 40px; /* 页面间距 */
 
   /* ---- 4. 动效 ---------------------------------------------------------- */
-  --m3e-duration-short: 150ms;
-  --m3e-duration-medium: 250ms;
-  --m3e-duration-long: 400ms;
+  /*
+   * M3 完整时长阶梯（对应 material-web 的 md.sys.motion.duration.*）。
+   * 之前只有 short/medium/long 三档，粒度太粗：M3 里「状态层渐变」用 100ms、
+   * 「卡片悬浮」用 200ms、「浮层展开」用 400ms，硬塞进三档就会该快的偏慢。
+   * 短按反馈（<150ms）才感觉得到"跟手"，长过 200ms 就发滞。
+   */
+  --m3e-duration-short1: 50ms;
+  --m3e-duration-short2: 100ms;
+  --m3e-duration-short3: 150ms;
+  --m3e-duration-short4: 200ms;
+  --m3e-duration-medium1: 250ms;
+  --m3e-duration-medium2: 300ms;
+  --m3e-duration-medium3: 350ms;
+  --m3e-duration-medium4: 400ms;
+  --m3e-duration-long1: 450ms;
+  --m3e-duration-long2: 500ms;
+  --m3e-duration-long3: 550ms;
+  --m3e-duration-long4: 600ms;
+  --m3e-duration-extra-long1: 700ms;
+  --m3e-duration-extra-long2: 800ms;
+  --m3e-duration-extra-long3: 900ms;
+  --m3e-duration-extra-long4: 1000ms;
+
+  /* 三档语义别名，保留给既有样式用 */
+  --m3e-duration-short: var(--m3e-duration-short3);
+  --m3e-duration-medium: var(--m3e-duration-medium1);
+  --m3e-duration-long: var(--m3e-duration-medium4);
+
+  /*
+   * 缓动。注意 --m3e-easing-emphasized 与 standard 的贝塞尔值相同，这不是笔误 ——
+   * M3 规范的「emphasized」是一段两段式路径，单条 cubic-bezier 无法表达，
+   * material-web 自己的 Web 实现就用 standard 的曲线近似它。
+   * 真正拉开观感的是下面两条 decelerate / accelerate（分别用于"进场"和"离场"）。
+   */
   --m3e-easing-standard: cubic-bezier(0.2, 0, 0, 1);
   --m3e-easing-emphasized: cubic-bezier(0.2, 0, 0, 1);
   --m3e-easing-emphasized-decelerate: cubic-bezier(0.05, 0.7, 0.1, 1);
   --m3e-easing-emphasized-accelerate: cubic-bezier(0.3, 0, 0.8, 0.15);
+  --m3e-easing-linear: linear;
 
   /* ---- 5. 排版（M3 15 阶） ---------------------------------------------- */
   /*
@@ -127,9 +159,48 @@
     0 4px 4px 0 color-mix(in srgb, var(--shadow) 30%, transparent);
 
   /* ---- 7. 布局 ---------------------------------------------------------- */
+  /*
+   * 版心与阅读列宽度遵循 Shirone / M3 的窗口尺寸类别约定：
+   *   --m3e-content-max  列表页与首页的版心，对应 Large 档（1200–1599dp）
+   *   --m3e-reading-max  正文阅读列。规范要求在 Extra-large（>= 1280px）上把
+   *                      正文**约束在 840–1040dp 内居中**、两侧留白，
+   *                      严禁长文无限横拉 —— 行宽过长时视线在换行处容易
+   *                      丢行，是最常见的可读性事故。
+   *                      这里取区间下界而非中值：同一像素宽度下，中文能排的
+   *                      字数约为西文的两倍，840px / 16px 已是 52 个汉字一行，
+   *                      是规范允许范围内对中文最舒适的取值。
+   */
   --m3e-content-max: 1200px;
-  --m3e-reading-max: 760px;
+  --m3e-reading-max: 840px;
+
+  /*
+   * 正文段落的最大行宽，与阅读列同宽。
+   * 此前它是独立的一档 68ch —— 中文下 ch 只算出 586px，比标题和封面都窄，
+   * 且在列内是左对齐的，于是宽屏上右半边空出一条竖向死区，像排版坏了一样。
+   * 阅读列本身已经是规范认可的版心，正文跟着它走即可，没必要再收一道。
+   * 保留独立 token 是为了万一正文被放进更宽的容器时仍有一条兜底约束。
+   */
+  --m3e-measure: var(--m3e-reading-max);
   --m3e-topbar-h: 64px;
+
+  /* 窗口尺寸类别断点（与 Tailwind 默认对齐），供组件 @media 引用 */
+  --m3e-bp-sm: 640px;
+  --m3e-bp-md: 768px;
+  --m3e-bp-lg: 1024px;
+  --m3e-bp-xl: 1280px;
+
+  /*
+   * 密度：桌面精确指针（鼠标）下自动收紧一档，触屏保持宽松。
+   * 用 calc(基础 + var(--m3e-density) * 4px) 参与计算，
+   * 不引用该变量的组件自然无感。
+   */
+  --m3e-density: 0;
+
+  /* 环境动效时长（仅装饰，绝不可用于交互反馈 —— 那种场合必须 150–400ms） */
+  --m3e-duration-ambient-short: 7s;
+  --m3e-duration-ambient-medium: 10s;
+  --m3e-duration-ambient-long: 13s;
+  --m3e-duration-ambient-extra-long: 18s;
 
   --wallpaper-opacity: 1;
   --texture-opacity: 0.12;
@@ -139,7 +210,29 @@
      这里用 light-dark() 让暗色自动压暗，与主题色相保持一致。 */
   --cover-placeholder-blend: 18%;
 
+  /* ---- 图片色调辉光（Tonal Bloom）--------------------------------------
+     图片加载前用「与主题色同源的模糊色块」占位，加载完成后淡出、清晰图浮现。
+     目的有二：消除白块闪烁；让占位色跟随访客调的主题色（而不是固定的灰）。
+     色块来自 --tint（ArticleCard 由 placeholderTint(标题) 派生，
+     主题色相 ±12°），**不做逐图主色提取** —— 那需要 JS 解码图片，
+     对首屏是净负担（Shirone 文档也明确为纯 CSS 实现）。
+     ------------------------------------------------------------------- */
+  --bloom-blur: 20px;
+  --bloom-opacity: 0.7;
+  --bloom-duration: 300ms;
+
   color-scheme: light;
+}
+
+/*
+ * 精确指针（鼠标）环境下收紧一档密度：控件高度 -4px。
+ * 触屏不做这个调整 —— 手指需要更大的命中区域，
+ * 48dp 的最小触控目标在移动端是硬要求。
+ */
+@media (hover: hover) and (pointer: fine) {
+  :root {
+    --m3e-density: -1;
+  }
 }
 
 :root.dark {
@@ -147,37 +240,12 @@
 }
 
 /* ============================================================================
-   状态层：M3 交互反馈统一走叠加层，而不是改变组件自身颜色
-   ============================================================================ */
-.m3-state-layer {
-  position: relative;
-}
-
-.m3-state-layer::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: currentColor;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--m3e-duration-short) var(--m3e-easing-standard);
-}
-
-.m3-state-layer:hover::after {
-  opacity: 0.08;
-}
-
-.m3-state-layer:focus-visible::after {
-  opacity: 0.1;
-}
-
-.m3-state-layer:active::after {
-  opacity: 0.12;
-}
-
-/* ============================================================================
    减少动效：系统偏好 或 访客手动开启
+   ============================================================================
+   注意 `animation-timeline: none` 这两条不是冗余。滚动驱动动画（见 main.css
+   的 .m3-reveal）由滚动进度而非 animation-duration 驱动，只把时长压到 0.01ms
+   是关不掉它的 —— 浏览器会忽略该元素上的 duration。必须显式摘掉时间轴，
+   动画才会退回文档时间轴，再被 0.01ms 的时长瞬间跑完、停在终态。
    ============================================================================ */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -185,6 +253,7 @@
   *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+    animation-timeline: none !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
@@ -195,6 +264,7 @@
 :root.motion-reduced *::after {
   animation-duration: 0.01ms !important;
   animation-iteration-count: 1 !important;
+  animation-timeline: none !important;
   transition-duration: 0.01ms !important;
   scroll-behavior: auto !important;
 }

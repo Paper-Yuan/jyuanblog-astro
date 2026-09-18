@@ -1,0 +1,163 @@
+---
+/**
+ * 日历部件 —— 按月聚合文章发布日期。
+ *
+ * 纯静态表格（构建期生成），不引入日期库：只用到"年月日"三个数字，
+ * 为这点需求打包一个日历库不划算。
+ *
+ * ★ 时区：文章的 `createdAt` 是 UTC 字符串，直接用 `new Date()` 取
+ *   `getMonth()/getDate()` 会按**运行环境时区**解释，构建机与访客看到
+ *   的日期可能差一天。统一用 `SITE.timeZone` 格式化后再取数字。
+ */
+import { SITE } from '@/config/site';
+
+interface Props {
+  articles: { title: string; slug: string; createdAt: string }[];
+}
+
+const { articles } = Astro.props;
+
+/** 按站点时区取出 年/月/日 三元组，避免时区把日期挪一天 */
+function partsInSiteTz(iso: string) {
+  // 'en-CA' 的 toLocaleDateString 输出恰好是 YYYY-MM-DD，便于直接切分
+  const [y, m, d] = new Intl.DateTimeFormat('en-CA', {
+    timeZone: SITE.timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+    .format(new Date(iso))
+    .split('-')
+    .map(Number);
+  return { y, m, d };
+}
+
+/** 按月归组：{ '2026-09': [{day, title, slug}] } */
+const byMonth = new Map<string, { day: number; title: string; slug: string }[]>();
+for (const a of articles) {
+  const { y, m, d } = partsInSiteTz(a.createdAt);
+  const key = `${y}-${String(m).padStart(2, '0')}`;
+  if (!byMonth.has(key)) byMonth.set(key, []);
+  byMonth.get(key)!.push({ day: d, title: a.title, slug: a.slug });
+}
+
+// 最近 3 个月，且只保留有文章的那些
+const recent = [...byMonth.entries()]
+  .sort((a, b) => (a[0] < b[0] ? 1 : -1))
+  .slice(0, 3);
+---
+
+{
+  recent.length > 0 && (
+    <div class="m3-card widget calendar">
+      <p class="head type-label-lg">发布日历</p>
+      {recent.map(([key, items]) => {
+        const [y, m] = key.split('-');
+        const days = new Set(items.map((i) => i.day));
+        const daysInMonth = new Date(Number(y), Number(m), 0).getDate();
+        // 该月 1 号是周几（0=周日）。用于把 1 号对齐到正确的列
+        const firstWeekday = new Date(Number(y), Number(m) - 1, 1).getDay();
+        const cells: (number | null)[] = [
+          ...Array.from({ length: firstWeekday }, () => null),
+          ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+        ];
+        return (
+          <section class="month">
+            <p class="label type-label-md">
+              {y} 年 {Number(m)} 月
+              <span class="n">{items.length} 篇</span>
+            </p>
+            <div class="weekdays type-label-md" aria-hidden="true">
+              {['日', '一', '二', '三', '四', '五', '六'].map((w) => (
+                <span>{w}</span>
+              ))}
+            </div>
+            <div class="days">
+              {cells.map((d) =>
+                d === null ? (
+                  <span class="day blank" />
+                ) : days.has(d) ? (
+                  <a
+                    class="day has"
+                    href={`/blog/${items.find((i) => i.day === d)!.slug}`}
+                    title={items.find((i) => i.day === d)!.title}
+                  >
+                    {d}
+                  </a>
+                ) : (
+                  <span class="day">{d}</span>
+                )
+              )}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  )
+}
+
+<style>
+  .calendar {
+    border: 1px solid var(--outline-variant);
+  }
+
+  .head {
+    margin: 0 0 var(--m3e-space-3);
+    color: var(--on-surface-variant);
+  }
+
+  .month + .month {
+    margin-top: var(--m3e-space-4);
+  }
+
+  .label {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin: 0 0 var(--m3e-space-2);
+    color: var(--on-surface-variant);
+  }
+
+  .n {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .weekdays,
+  .days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+  }
+
+  .weekdays span {
+    text-align: center;
+    color: var(--on-surface-variant);
+  }
+
+  .day {
+    display: grid;
+    place-items: center;
+    aspect-ratio: 1;
+    border-radius: var(--shape-corner-s);
+    color: var(--on-surface-variant);
+    font-size: var(--m3e-label-md-size);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* 有文章的日子才是可点的；其余日期保持纯文本，避免出现大量死链接 */
+  .day.has {
+    background: var(--primary-container);
+    color: var(--on-primary-container);
+    font-weight: 600;
+  }
+
+  .day.has:hover {
+    text-decoration: none;
+    background: var(--primary);
+    color: var(--on-primary);
+  }
+
+  .blank {
+    visibility: hidden;
+  }
+</style>

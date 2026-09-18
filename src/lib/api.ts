@@ -69,8 +69,18 @@ interface Envelope<T> {
   data: T;
 }
 
+/**
+ * 构建期的服务端 API 基址。
+ *
+ * 刻意不放进 SITE：SITE 会被客户端岛（Comments.svelte）整对象打进浏览器 bundle，
+ * 而本地址在本地开发时是 http://127.0.0.1:8787/api —— 那是构建机内网地址，
+ * 泄漏到产物里既无意义也叫人误以为线上要配。此模块只在 .astro frontmatter
+ * （Node 侧）被 import，读 import.meta.env 不会进客户端。
+ */
+const API_BASE_URL = import.meta.env.JYUANBLOG_API_URL || 'http://127.0.0.1:8787/api';
+
 async function apiGet<T>(path: string): Promise<T | null> {
-  const url = `${SITE.apiBaseUrl}${path}`;
+  const url = `${API_BASE_URL}${path}`;
   // 必须带超时：构建期若 API 不可达，不该让 astro build 挂住几分钟才降级
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
@@ -103,7 +113,7 @@ async function apiGet<T>(path: string): Promise<T | null> {
 const FALLBACK_ARTICLES: Article[] = [
   {
     id: 1,
-    title: '欢迎来到 JyuanBlog',
+    title: '欢迎来到千机志',
     slug: 'welcome-to-jyuanblog',
     summary: '这是一个采用 Material 3 Expressive 设计的个人博客。',
     coverImage: '',
@@ -124,9 +134,29 @@ const FALLBACK_ARTICLES: Article[] = [
 const FALLBACK_DETAIL: ArticleDetail = {
   ...FALLBACK_ARTICLES[0],
   content:
-    '# 欢迎来到 JyuanBlog\n\n本文是离线占位内容。\n\n请确认 Worker API 可访问后重新构建，即可看到真实文章。\n',
+    '# 欢迎来到千机志\n\n本文是离线占位内容。\n\n请确认 Worker API 可访问后重新构建，即可看到真实文章。\n',
   contentHtml: '',
 };
+
+/**
+ * API 不可达时的处理。
+ *
+ * 生产构建**绝不能静默用示例数据上线**：那样占位文章会被当成真内容发布，
+ * 而且构建还是"成功"的，谁也不会发现。所以这里默认直接中止构建；
+ * 确实需要离线构建时才用 JYUANBLOG_ALLOW_FALLBACK=1 显式放行。
+ */
+function onFallback(what: string): void {
+  const allow = import.meta.env.JYUANBLOG_ALLOW_FALLBACK === '1';
+  const msg = [
+    `[api] ${what}拉取失败。数据源：${API_BASE_URL}`,
+    allow
+      ? '  JYUANBLOG_ALLOW_FALLBACK=1，退回示例数据继续构建。'
+      : '  生产构建已中止，避免把示例数据当成真内容发布。',
+    ...(allow ? [] : ['  修好数据源，或设 JYUANBLOG_ALLOW_FALLBACK=1 明确允许降级。']),
+  ].join('\n');
+  if (import.meta.env.PROD && !allow) throw new Error(msg);
+  console.warn(msg);
+}
 
 export async function getArticles(params: {
   page?: number;
@@ -145,6 +175,7 @@ export async function getArticles(params: {
   const data = await apiGet<Paged<Article>>(`/articles?${qs}`);
   if (data) return data;
 
+  onFallback('文章列表');
   return {
     list: FALLBACK_ARTICLES,
     total: FALLBACK_ARTICLES.length,
@@ -168,6 +199,7 @@ export async function getAllArticles(): Promise<Article[]> {
 export async function getArticle(idOrSlug: string | number): Promise<ArticleDetail> {
   const data = await apiGet<ArticleDetail>(`/articles/${idOrSlug}`);
   if (data) return data;
+  onFallback(`文章详情（${idOrSlug}）`);
   return FALLBACK_DETAIL;
 }
 
@@ -211,4 +243,43 @@ export interface CommentRow {
 export async function apiReachable(): Promise<boolean> {
   const data = await apiGet<{ status: string }>('/health');
   return Boolean(data?.status === 'ok');
+}
+
+// ---------------------------------------------------------------- 音乐
+export interface Track {
+  id: number;
+  title: string;
+  artist: string;
+  album: string;
+  coverUrl: string;
+  audioUrl: string;
+  duration: number;
+  lyric: string;
+  playCount: number;
+  createdAt: string;
+}
+
+/**
+ * 取可播放曲目。
+ *
+ * ★ 这里做了两道过滤，缺一不可：
+ *   1. `audioUrl` 非空 —— 后端 `safeMediaUrl()` 会把非法协议清成空串，
+ *      所以"地址为空"既表示本来就没填，也表示地址不可信。
+ *   2. 只保留 http(s) 或站内相对路径 —— 二次确认（前端不该假设后端一定过了校验）。
+ *
+ * 返回空数组时，调用方（MusicWidget）**不渲染任何 DOM**，
+ * 这样"库里没有歌"与"功能被关掉"在页面上是同一种表现：什么都不显示。
+ */
+export async function getTracks(): Promise<Track[]> {
+  const list = (await apiGet<Track[]>('/music/list')) ?? [];
+  return list.filter((t) => {
+    const u = String(t.audioUrl ?? '').trim();
+    if (!u) return false;
+    if (u.startsWith('/') && !u.startsWith('//')) return true;
+    try {
+      return ['http:', 'https:'].includes(new URL(u).protocol);
+    } catch {
+      return false;
+    }
+  });
 }

@@ -17,7 +17,7 @@ const { list: articles, total } = await getArticles({ page, pageSize: 50 });
     articles.length === 0 ? (
       <p class="empty">还没有已发布的文章。</p>
     ) : (
-      <div class="grid">
+      <div class="grid m3-stagger">
         {articles.map((a) => (
           <ArticleCard article={a} />
         ))}

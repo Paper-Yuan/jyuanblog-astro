@@ -1,0 +1,64 @@
+---
+/**
+ * 注册页。
+ *
+ * 公开注册只创建普通用户（role=user）—— 无法发布文章、看不到他人的邮箱，
+ * 也不能以管理员身份登录（admin 是保留用户名）。
+ */
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import AuthForm from '@/components/AuthForm.svelte';
+---
+
+<BaseLayout title="注册" description="注册千机志账号">
+  <div class="wrap">
+    <AuthForm mode="register" client:load />
+
+    <section class="notes type-body-sm">
+      <h2 class="type-title-sm">注册说明</h2>
+      <ul>
+        <li>用户名不可重复，也不区分大小写（不允许用大小写变体冒充他人）。</li>
+        <li><code>admin</code> 等系统保留名不可注册，避免与站长混淆。</li>
+        <li>密码需至少 8 位，并包含字母、数字、符号中的两类。</li>
+        <li>登录后评论会显示你的用户名，发言频率限制也比匿名宽松。</li>
+        <li>邮箱可选且不会公开，仅站长在处置违规时可见。</li>
+      </ul>
+    </section>
+  </div>
+</BaseLayout>
+
+<style>
+  .wrap {
+    max-width: var(--m3e-reading-max);
+    margin: 0 auto;
+    padding: var(--m3e-space-8) 0;
+  }
+
+  .notes {
+    margin-top: var(--m3e-space-8);
+    padding: var(--m3e-space-5);
+    border: 1px solid var(--outline-variant);
+    border-radius: var(--shape-corner-l);
+    color: var(--on-surface-variant);
+  }
+
+  .notes h2 {
+    color: var(--on-surface);
+    margin-bottom: var(--m3e-space-3);
+  }
+
+  .notes ul {
+    padding-left: 1.4em;
+    display: flex;
+    flex-direction: column;
+    gap: var(--m3e-space-2);
+  }
+
+  code {
+    padding: 1px 5px;
+    border-radius: var(--shape-corner-xs);
+    background: var(--surface-container-high);
+    color: var(--on-surface);
+    font-family: var(--m3e-font-mono);
+    font-size: 0.9em;
+  }
+</style>

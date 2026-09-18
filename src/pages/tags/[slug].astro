@@ -37,7 +37,7 @@ const articles = all.filter((a) => a.tags.some((t) => t.id === tag.id));
       <ul class="list">
         {articles.map((a) => (
           <li>
-            <a href={`/blog/${a.id}`} class="row m3-card m3-card--interactive">
+            <a href={`/blog/${a.slug}`} class="row m3-card m3-card--interactive">
               <span class="title type-title-md">{a.title}</span>
               <span class="summary type-body-sm">{a.summary}</span>
             </a>

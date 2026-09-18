@@ -1,11 +1,13 @@
 /**
  * 构建期 Markdown 渲染与文本工具。
  *
- * 全部在服务端执行（Astro 构建时），因此客户端不打包 marked。
- * 渲染结果直接是可信 HTML —— 但为稳妥仍过滤掉脚本类标签，
- * 防止管理员粘贴的外部内容带进 script/iframe。
+ * 全部在服务端执行（Astro 构建时），因此客户端不打包 marked / sanitize-html。
+ * 渲染结果经 **sanitize-html 白名单**净化后才交给 set:html：
+ * 文章正文理论上只由站长撰写，但它可能是从别处粘贴来的，
+ * 因此仍按"不可信输入"处理。
  */
 import { marked } from 'marked';
+import sanitizeHtml from 'sanitize-html';
 import { SITE } from '@/config/site';
 
 marked.setOptions({ gfm: true, breaks: true });
@@ -82,18 +84,64 @@ export function renderMarkdown(markdown: string): RenderedMarkdown {
 
   let html = marked.parse(src, { renderer, async: false }) as string;
 
-  // 防御性清理：即使内容来自自己的后台，也不允许这些标签进入静态页面
-  html = html
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
-    .replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
-
-  // 外链补 rel，避免被当作 referrer 泄露来源
-  html = html.replace(
-    /<a href="(https?:\/\/[^"]+)"/gi,
-    '<a href="$1" rel="noopener noreferrer" target="_blank"'
-  );
+  /**
+   * 白名单净化。
+   *
+   * 这里**替换**掉早期的正则黑名单实现（逐条删 <script>/<iframe>/on* 属性）。
+   * 黑名单对 HTML 是不安全的，例如 `<svg/onload=…>` 用斜杠代替空格就绕过了
+   * `\son\w+=` 这类模式；畸形标签、编码实体也各有绕过手法。
+   * 白名单只放行明确认识的标签与属性，未知的一律丢弃。
+   *
+   * 注意 allowedAttributes 里 **不允许任何 on* 事件属性**，
+   * 也不允许 style —— 前者直接等于 XSS，后者可用来做视觉欺骗。
+   * 另外 CSP 里的 script-src 是哈希制，即便漏过一个内联脚本也执行不了，
+   * 两层防护是独立生效的。
+   */
+  html = sanitizeHtml(html, {
+    allowedTags: [
+      'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+      'p', 'br', 'hr', 'blockquote', 'pre', 'code',
+      'ul', 'ol', 'li', 'dl', 'dt', 'dd',
+      'strong', 'em', 'b', 'i', 'u', 's', 'del', 'ins', 'mark', 'sub', 'sup', 'kbd', 'abbr',
+      'a', 'img', 'figure', 'figcaption',
+      'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td',
+      'span', 'div',
+    ],
+    // 明确不包含 style / class / id 之外的任意属性；on* 一律不在白名单内
+    allowedAttributes: {
+      a: ['href', 'title', 'rel', 'target'],
+      img: ['src', 'alt', 'title', 'width', 'height', 'loading', 'decoding'],
+      // marked 给我们生成的标题锚点 id（TOC 跳转依赖它）
+      h1: ['id'], h2: ['id'], h3: ['id'], h4: ['id'], h5: ['id'], h6: ['id'],
+      code: ['class'],
+      pre: ['class'],
+      th: ['align'], td: ['align'],
+      // 语言标注用（如 task-list 的 checkbox 不开放，故不列 input）
+      span: [],
+    },
+    // 链接协议白名单：挡 javascript: / data: 这类可执行伪协议
+    allowedSchemes: ['http', 'https', 'mailto'],
+    allowedSchemesAppliedToAttributes: ['href', 'src'],
+    // 图片只允许 http(s)，避免 data: 图片把大体积内容塞进 HTML
+    allowedSchemesByTag: { img: ['http', 'https'] },
+    allowProtocolRelative: false,
+    // 不解析注释，直接丢弃
+    allowedIframeHostnames: [],
+    disallowedTagsMode: 'discard',
+    transformTags: {
+      // 外链统一补 rel：阻止被当作 referrer 泄露来源，并断开 window.opener
+      a: (tagName, attribs) => {
+        const out = { ...attribs };
+        if (out.href && /^https?:\/\//i.test(out.href)) {
+          out.rel = 'noopener noreferrer';
+          out.target = '_blank';
+        } else {
+          delete out.target;
+        }
+        return { tagName, attribs: out };
+      },
+    },
+  });
 
   return {
     html,

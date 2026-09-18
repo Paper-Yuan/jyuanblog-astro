@@ -3,23 +3,28 @@
   "type": "module",
   "version": "0.1.0",
   "private": true,
-  "description": "JyuanBlog 静态前台 —— Astro 7 + Svelte 5 islands + Material 3 Expressive 设计系统",
+  "description": "千机志 静态前台 —— Astro 7 + Svelte 5 islands + Material 3 Expressive 设计系统",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build && pagefind --site dist",
+    "build": "astro build && pagefind --site dist && node scripts/merge-admin.mjs",
     "build:only": "astro build",
+    "build:admin": "MSYS_NO_PATHCONV=1 npx --prefix ../jyuanblog-frontend vite build --base=/admin/ --outDir dist-admin --emptyOutDir",
     "preview": "astro preview",
     "check": "astro check",
-    "search:index": "pagefind --site dist"
+    "search:index": "pagefind --site dist",
+    "verify:visual": "node scripts/verify-visual.mjs",
+    "verify:exports": "node scripts/verify-exports.mjs dist"
   },
   "dependencies": {
     "@astrojs/rss": "^4.0.19",
     "@astrojs/sitemap": "^3.7.4",
     "@astrojs/svelte": "9.0.1",
     "@material/material-color-utilities": "0.4.0",
+    "@types/sanitize-html": "^2.16.1",
     "astro": "7.3.2",
     "marked": "^18.0.13",
     "pagefind": "^1.5.2",
+    "sanitize-html": "^2.17.7",
     "svelte": "^5.57.0"
   },
   "devDependencies": {
