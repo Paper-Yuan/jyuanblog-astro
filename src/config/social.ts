@@ -14,10 +14,10 @@ export interface SocialLink {
 
 /** 改这里即可。留空数组则侧栏名片不渲染社交区。 */
 const RAW: SocialLink[] = [
-  // 填成你自己的地址再启用；现在留的是占位，指向站点首页以免误导
-  { label: 'B 站', url: '/' },
-  { label: 'GitHub', url: '/' },
-  { label: 'RSS', url: '/rss.xml' },
+  { label: 'B 站', url: 'https://space.bilibili.com/99201674' },
+  { label: 'GitHub', url: 'https://github.com/Zzz-IT/GoclashZ/issues' },
+  // RSS 不在此列：订阅源仍由 <head> 里的 <link rel="alternate"> 与页脚提供，
+  // 名片区只放"人"的入口，不放格式入口。
 ];
 
 /** 过滤掉校验不过的条目 —— 宁可少一个入口，也不要留一个可疑的 href */
