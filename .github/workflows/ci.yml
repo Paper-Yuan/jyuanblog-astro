@@ -6,10 +6,10 @@ name: CI
 #
 # 也不拆成三个仓库各跑各的：前台生产构建必须真的连得到一个后端（连不上要
 # 主动中止，否则会把占位文章发上线），并且 merge-admin 硬性依赖后台产物
-# dist-admin/。所以这里做一次跨仓 checkout，把三段验全 —— 需要仓库密钥
-# GH_READ_TOKEN（只读 fine-grained PAT，仅授 jyuanblog-worker 与
-# jyuanblog-frontend 两个仓）。缺这个密钥时本工作流会在 checkout 步骤直接失败，
-# 而不是静默跳过 —— 跳过就等于回到"CI 从没跑过"的老状态。
+# dist-admin/。所以这里用跨仓 checkout 把三段验全 —— 跨仓读取靠两把**只读
+# Deploy Key**（secrets.CI_WORKER_SSH_KEY / CI_FRONTEND_SSH_KEY，各只能读自己那个仓）。
+# 缺密钥时本工作流会在 checkout 步骤直接失败，而不是静默跳过 —— 跳过就等于
+# 回到"CI 从没跑过"的老状态。
 
 on:
   push:
@@ -27,19 +27,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # 跨仓读取用**只读 Deploy Key**（每仓一把、只读、无用户身份），而不是 PAT：
+      # PAT 带着你的账号权限，CI 里泄露一次就能写你的仓库；deploy key 只能读这一个仓。
       - name: Checkout API (jyuanblog-worker)
         uses: actions/checkout@v4
         with:
           repository: Paper-Yuan/jyuanblog-worker
           path: jyuanblog-worker
-          token: ${{ secrets.GH_READ_TOKEN }}
+          ssh-key: ${{ secrets.CI_WORKER_SSH_KEY }}
 
       - name: Checkout admin (jyuanblog-frontend)
         uses: actions/checkout@v4
         with:
           repository: Paper-Yuan/jyuanblog-frontend
           path: jyuanblog-frontend
-          token: ${{ secrets.GH_READ_TOKEN }}
+          ssh-key: ${{ secrets.CI_FRONTEND_SSH_KEY }}
 
       - uses: actions/setup-node@v4
         with:
