@@ -98,8 +98,12 @@ jobs:
         working-directory: jyuanblog-worker
         run: |
           set -e
+          # 只跑 schema.sql：它就是 3.0 的形状（已含 users 表与 comments.user_id）。
+          # 之前这里还接着跑 migrate-3.0-users.sql，在全新库上必然报
+          # "duplicate column name: user_id" —— SQLite 没有 ADD COLUMN IF NOT EXISTS，
+          # 迁移脚本只服务于**已有旧库**的升级路径。本地因为 .wrangler/state 里
+          # 早就有库，这条路永远撞不到，只有 CI 的全新 runner 会暴露。
           npx wrangler d1 execute blog-db --local --file=schema.sql
-          npx wrangler d1 execute blog-db --local --file=migrate-3.0-users.sql
           npx wrangler d1 execute blog-db --local --file=seed.sql
           nohup npx wrangler dev --local --port 8797 --ip 127.0.0.1 \
             --var ADMIN_PASSWORD:ci-only-not-a-secret \
