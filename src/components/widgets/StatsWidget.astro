@@ -32,8 +32,8 @@ const stats = [
 ];
 ---
 
-<div class="m3-card widget stats">
-  <p class="head type-label-lg">站点数据</p>
+<div class="m3-card widget stats m3-reveal">
+  <p class="head type-label-lg"><span class="m3-accent-bar" aria-hidden="true"></span>站点数据</p>
   <dl class="grid">
     {
       stats.map((s) => (
@@ -53,6 +53,9 @@ const stats = [
   }
 
   .head {
+    display: flex;
+    align-items: center;
+    gap: var(--m3e-space-2);
     margin: 0 0 var(--m3e-space-4);
     color: var(--on-surface-variant);
   }

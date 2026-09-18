@@ -225,3 +225,18 @@ export function placeholderTint(seed: string, hue = 315): string {
   const shift = h - 12; // -12 ~ +12
   return `hsl(${(hue + shift + 360) % 360} 32% 90%)`;
 }
+
+/**
+ * 把用户可控的颜色字符串收敛成"只可能是十六进制色"。
+ *
+ * 标签色、分类色来自后台数据，会被写进 `style="--tag-color: …"`。
+ * 直接透传等于开一个 CSS 注入面：`red; background-image: url(...)` 这类值
+ * 能往属性里塞额外声明（CSP 的 style-src 'unsafe-inline' 是放行的）。
+ * 只接受 #rgb/#rgba/#rrggbb/#rrggbbaa 四种形态，其余一律当没填 ——
+ * 宁可少一个颜色，也不要多一个入口。
+ */
+export function safeColor(raw: string | null | undefined): string | undefined {
+  if (!raw) return undefined;
+  const v = raw.trim();
+  return /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(v) ? v : undefined;
+}

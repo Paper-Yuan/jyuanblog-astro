@@ -9,7 +9,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
 import Icon from '@/components/Icon.astro';
 import Comments from '@/components/Comments.svelte';
 import { getAllArticles, getArticle, type Article } from '@/lib/api';
-import { renderMarkdown, formatDate, compactNumber, placeholderTint } from '@/lib/format';
+import { renderMarkdown, formatDate, compactNumber, placeholderTint, safeColor } from '@/lib/format';
 import { SITE } from '@/config/site';
 
 export async function getStaticPaths() {
@@ -75,11 +75,15 @@ const jsonLd = {
 
       {article.tags.length > 0 && (
         <div class="tags">
-          {article.tags.map((t) => (
-            <a href={`/tags/${t.slug}`} class="m3-chip" style={t.color ? `color:${t.color}` : undefined}>
-              # {t.name}
-            </a>
-          ))}
+          {article.tags.map((t) => {
+            /* 标签色来自后台数据，过白名单再进 style（见 @/lib/format） */
+            const c = safeColor(t.color);
+            return (
+              <a href={`/tags/${t.slug}`} class="m3-chip" style={c ? `color:${c}` : undefined}>
+                # {t.name}
+              </a>
+            );
+          })}
         </div>
       )}
 

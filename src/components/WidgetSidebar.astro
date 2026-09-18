@@ -1,62 +1,47 @@
 ---
 /**
- * 侧栏部件编排。
+ * 侧栏部件编排（首页）。
  *
  * 设计参照 Shirone 的 `sidebarConfig`（`slot` 决定顺序、`enable` 决定有无），
  * 但这里用**构建期静态组合**而非运行时配置对象：Astro 是静态生成，
  * 配置在构建时就固化成 HTML，比在浏览器里读一份配置再条件渲染更快也更稳。
  *
+ * ★ 分类 / 标签 / 音乐已经搬去常驻悬浮栏（SideDock）——
+ *   它们原先只在首页出现，读者翻到文章页就找不到入口；搬进跨页常驻的栏之后
+ *   "选择"在每一页都拿得到，且只有一份 DOM。
+ *   这里留下的是**只与首页语境有关**的部件：名片、站点数据、发布日历。
+ *
  * ★ 想增删部件就改这个文件里的数组 —— 不要在各页面里零散地写侧栏。
  */
 import ProfileWidget from './widgets/ProfileWidget.astro';
 import StatsWidget from './widgets/StatsWidget.astro';
-import CategoriesWidget from './widgets/CategoriesWidget.astro';
-import TagsWidget from './widgets/TagsWidget.astro';
 import CalendarWidget from './widgets/CalendarWidget.astro';
-import MusicWidget from './widgets/MusicWidget.svelte';
-import { getTracks } from '@/lib/api';
-import { MUSIC } from '@/config/music';
 
 interface Props {
   /** 部件顺序即数组顺序 */
-  slots?: ('profile' | 'music' | 'stats' | 'categories' | 'tags' | 'calendar')[];
-  /** 当前文章目录（文章页传入；其它页不传） */
-  toc?: { depth: number; text: string; id: string }[];
+  slots?: ('profile' | 'stats' | 'calendar')[];
   /** 日历要聚合的文章（通常是首页那批） */
   articles?: { title: string; slug: string; createdAt: string }[];
 }
 
-const {
-  slots = ['profile', 'music', 'stats', 'categories', 'tags', 'calendar'],
-  toc = [],
-  articles = [],
-} = Astro.props;
-
-/*
- * 曲目在**构建期**取一次并作为 props 交给岛。
- * 这样访客浏览时不产生任何 API 请求（静态站点的优势），
- * 代价是加歌后需要重新构建前台才能上屏 —— 与文章同样的取舍。
- *
- * 空数组是常态（线上 music 表为空）：此时 MusicWidget 渲染 null，
- * 侧栏不会留下空壳卡片。
- */
-const tracks = slots.includes('music') && MUSIC.enable ? await getTracks().catch(() => []) : [];
+const { slots = ['profile', 'stats', 'calendar'], articles = [] } = Astro.props;
 ---
 
-<aside class="widgets" aria-label="侧栏">
+<aside class="widgets m3-stagger" aria-label="侧栏">
   {slots.includes('profile') && <ProfileWidget />}
-  {
-    slots.includes('music') && MUSIC.enable && tracks.length > 0 && (
-      <MusicWidget tracks={tracks} client:visible />
-    )
-  }
   {slots.includes('stats') && <StatsWidget articleCount={articles.length} />}
-  {slots.includes('categories') && <CategoriesWidget />}
-  {slots.includes('tags') && <TagsWidget />}
   {slots.includes('calendar') && <CalendarWidget articles={articles} />}
 </aside>
 
 <style>
+  /*
+   * 部件入场：复用全局的 .m3-stagger + .m3-reveal 机制（见 main.css 的滚动入场段）。
+   * 每个部件根元素自己带 .m3-reveal（在各自的 .astro 里声明），
+   * 这里只负责把它们排成一列。
+   *
+   * ⚠️ 不要在这里给 .widgets 整体预设 opacity —— 入场元素默认状态必须可见，
+   *   那是滚动驱动动画三条铁律里最容易翻车的一条。
+   */
   .widgets {
     display: flex;
     flex-direction: column;

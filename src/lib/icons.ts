@@ -39,4 +39,6 @@ export type IconName =
   | 'skip-back'
   | 'skip-forward'
   | 'volume'
-  | 'calendar';
+  | 'calendar'
+  | 'tune'
+  | 'pin';

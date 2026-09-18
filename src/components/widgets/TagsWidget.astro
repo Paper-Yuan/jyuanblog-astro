@@ -1,78 +1,78 @@
 ---
 /**
- * 标签部件 —— 可折叠的标签片。
+ * 标签 —— 悬浮栏「标签」分区的内容。
  *
- * 标签自带颜色（后端 `tags.color`），这里用它做左边框以保留可辨识度，
- * 但**背景仍走主题容器色**：直接用标签色当底色会在深色主题下出现对比度不足。
+ * 标签自带颜色（后端 `tags.color`），这里用它只染文字与左边框，
+ * **不做底色**：标签色由用户数据决定，它可能是任何亮度，
+ * 当底色无法保证与文字有 4.5:1（暗色主题下尤其危险）。
+ *
+ * 外壳（浮层圆角、标题、折叠）由 SideDock 统一给，这里只出内容。
  */
 import { getTags } from '@/lib/api';
+import { safeColor } from '@/lib/format';
 
 const tags = await getTags().catch(() => []);
+const current = Astro.url.pathname.replace(/\/$/, '') || '/';
+
+/** 颜色先过白名单再进模板：见 @/lib/format 的 safeColor */
+const items = tags.map((t) => ({
+  ...t,
+  color: safeColor(t.color),
+  href: `/tags/${t.slug}`,
+}));
 ---
 
 {
-  tags.length > 0 && (
-    <details class="m3-card widget tags" open>
-      <summary class="head">
-        <span class="type-label-lg">标签</span>
-        <span class="count type-label-md">{tags.length}</span>
-      </summary>
+  items.length > 0 && (
+    <div class="tags">
       <div class="cloud">
-        {tags.map((t) => (
+        {items.map((t) => (
           <a
-            href={`/tags/${t.slug}`}
+            href={t.href}
             class="m3-chip"
+            classList={{ 'is-current': current === t.href }}
             style={t.color ? `--tag-color:${t.color}` : undefined}
+            aria-current={current === t.href ? 'page' : undefined}
           >
             # {t.name}
             <span class="n">{t.articleCount ?? 0}</span>
           </a>
         ))}
       </div>
-    </details>
+      <p class="foot type-body-sm">点标签进入该标签的文章列表</p>
+    </div>
   )
 }
 
 <style>
-  .widget {
-    border: 1px solid var(--outline-variant);
-  }
-
-  .head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    cursor: pointer;
-    list-style: none;
-    color: var(--on-surface-variant);
-  }
-
-  .head::-webkit-details-marker {
-    display: none;
-  }
-
-  .count {
-    padding: 0 var(--m3e-space-2);
-    border-radius: var(--shape-corner-full);
-    background: var(--surface-container-high);
-  }
-
   .cloud {
     display: flex;
     flex-wrap: wrap;
     gap: var(--m3e-space-2);
-    margin-top: var(--m3e-space-3);
   }
 
-  /* 有颜色时只染文字与左边框，不染底 —— 标签色由用户数据决定，
-     它可能是任何亮度，当底色无法保证与文字有 4.5:1 */
   .cloud a {
-    color: var(--tag-color, var(--on-surface-variant));
+    /* 标签色向"当前主题的正文色"拉 35% 再用：
+       数据库里的标签色可能是任何亮度，直接当文字色会在暗色主题下
+       出现 #ffd 压 #1a1a1a 那种 1.6:1 的不可读组合。
+       拉向 on-surface 后无论明暗都保底可读；纯色仍留在左边框上做识别。 */
+    color: color-mix(in oklab, var(--tag-color, var(--on-surface-variant)) 65%, var(--on-surface));
     border-left: 2px solid var(--tag-color, transparent);
+  }
+
+  .cloud a.is-current {
+    background: var(--secondary-container);
+    color: var(--on-secondary-container);
+    font-weight: 600;
   }
 
   .n {
     color: var(--on-surface-variant);
     font-variant-numeric: tabular-nums;
+  }
+
+  .foot {
+    margin: var(--m3e-space-3) 0 0;
+    color: var(--on-surface-variant);
   }
 </style>

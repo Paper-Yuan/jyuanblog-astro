@@ -16,6 +16,8 @@ const isActive = (href: string) =>
     <a href="/" class="brand" aria-label={`${SITE.title} 首页`}>
       <span class="brand-mark" aria-hidden="true">千</span>
       <span class="brand-text">{SITE.title}</span>
+      <!-- 上游 Shirone 的招牌细节：品牌旁一根短标，悬停时"抽线"变长 -->
+      <span class="brand-thread" aria-hidden="true"></span>
     </a>
 
     <nav class="nav" aria-label="主导航">
@@ -34,10 +36,31 @@ const isActive = (href: string) =>
         <Icon name="search" />
       </a>
 
+      <!--
+        明暗一键切换。放在顶栏而不是藏进设置面板：
+        这是使用频率最高的一次操作，为它开一层浮层是错的比例。
+        点一下在亮/暗之间切换；「跟随系统」这一档留在面板与悬浮栏里。
+      -->
+      <button
+        id="theme-toggle"
+        class="m3-icon-btn theme-toggle"
+        type="button"
+        data-mode="light"
+        aria-label="切到暗色"
+        title="切到暗色"
+      >
+        <span class="ico ico-light" aria-hidden="true"><Icon name="sun" /></span>
+        <span class="ico ico-dark" aria-hidden="true"><Icon name="moon" /></span>
+        <span class="ico ico-auto" aria-hidden="true"><Icon name="auto" /></span>
+      </button>
+
       <!-- 访客账号入口。登录态由客户端脚本按需替换文案（静态页无会话） -->
       <a href="/login" class="nav-link nav-account" data-account-link>登录</a>
 
-      <!-- 显示设置：Svelte 岛，点击才加载 -->
+      <!--
+        显示设置：Svelte 岛，点击才加载。
+        按钮上带一枚色相回显点 —— 不打开面板也能看见"现在调成了什么色"。
+      -->
       <button
         id="settings-trigger"
         class="m3-icon-btn"
@@ -46,6 +69,7 @@ const isActive = (href: string) =>
         aria-haspopup="dialog"
       >
         <Icon name="settings" />
+        <span class="hue-dot" aria-hidden="true"></span>
       </button>
 
       <button
@@ -69,12 +93,27 @@ const isActive = (href: string) =>
         </a>
       ))
     }
+    <a href="/login" class="mobile-link" data-account-link-mobile>登录</a>
     <a href={SITE.adminUrl} class="mobile-link">管理后台</a>
   </nav>
 </header>
 
 <script>
-  // 移动端抽屉：纯 DOM，无需框架
+  /**
+   * 顶栏的三个小交互：移动抽屉、账号入口回显、明暗一键切换 + 色相回显。
+   *
+   * 刻意写在这里而不是水合一个 Svelte 岛：顶栏每页都在，
+   * 为了三个按钮付一份岛的成本不划算。逻辑只读 @/lib/theme 的轻量层
+   * （不含 HCT 引擎），改完设置由 updateSettings() 广播给设置面板与悬浮栏。
+   */
+  import {
+    readSettings,
+    updateSettings,
+    resolveMode,
+    SETTINGS_EVENT,
+    DEFAULT_SETTINGS,
+  } from '@/lib/theme';
+
   const trigger = document.getElementById('mobile-nav-trigger');
   const panel = document.getElementById('mobile-nav');
   trigger?.addEventListener('click', () => {
@@ -86,14 +125,14 @@ const isActive = (href: string) =>
 
   /**
    * 顶栏账号入口：已登录则显示用户名并指向个人资料，未登录显示"登录"。
-   *
-   * 这段刻意写在顶栏而不是 Svelte 岛里 —— 顶栏在每一页都会渲染，
-   * 为了一个文字替换去水合一个岛不划算（会破坏"默认访客零 JS"的契约）。
    * 这里只读 localStorage 改两个属性，代价接近于零。
+   * ★ 桌面与移动抽屉各有一个入口，两处都要替换，否则窄屏上会露出"登录"字样。
    */
   (function () {
-    const link = document.querySelector('[data-account-link]');
-    if (!link) return;
+    const links = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-account-link], [data-account-link-mobile]')
+    );
+    if (!links.length) return;
     const KEY = 'jyuanblog:user-profile';
     let user = null;
     try {
@@ -101,17 +140,62 @@ const isActive = (href: string) =>
       if (raw) user = JSON.parse(raw);
     } catch {}
     if (!user || !user.username) return;
-    link.textContent = user.username;
-    link.setAttribute('href', user.role === 9 ? '/admin/' : '/');
-    link.setAttribute('title', user.role === 9 ? '进入管理后台' : '已登录');
+    const href = user.role === 9 ? '/admin/' : '/';
+    const title = user.role === 9 ? '进入管理后台' : '已登录';
+    for (const link of links) {
+      link.textContent = user.username;
+      link.setAttribute('href', href);
+      link.setAttribute('title', title);
+    }
   })();
+
+  /* ---- 明暗一键切换 ---- */
+  const themeBtn = document.getElementById('theme-toggle');
+
+  /** 按钮上只留一个图标：图标即"当前状态"的回显，而不是"我要做什么" */
+  function syncThemeBtn() {
+    if (!themeBtn) return;
+    const s = readSettings();
+    const eff = resolveMode(s.mode);
+    themeBtn.dataset.mode = s.mode === 'auto' ? `auto-${eff}` : s.mode;
+    // 文案说"点下去会发生什么"，比说"现在是什么"更好用
+    const next = eff === 'dark' ? '亮色' : '暗色';
+    const label = s.mode === 'auto' ? `跟随系统（当前 ${eff === 'dark' ? '暗色' : '亮色'}），点击切到${next}` : `切到${next}`;
+    themeBtn.setAttribute('aria-label', label);
+    themeBtn.title = label;
+  }
+
+  themeBtn?.addEventListener('click', () => {
+    const s = readSettings();
+    // auto 时先按"当前实际是亮还是暗"来翻转，否则在暗色系统上点一下会
+    // 从 auto 变成 light —— 看起来什么都没发生，第二次点击才生效。
+    const next = resolveMode(s.mode) === 'dark' ? 'light' : 'dark';
+    updateSettings({ mode: next });
+  });
+
+  /* ---- 色相回显：不打开面板也能看见现在调成了什么色 ---- */
+  const hueDot = document.querySelector<HTMLElement>('#settings-trigger .hue-dot');
+
+  function syncHueDot() {
+    if (!hueDot) return;
+    const s = readSettings();
+    hueDot.style.setProperty('--hue-val', String(s.hue));
+    hueDot.dataset.custom = String(s.hue !== DEFAULT_SETTINGS.hue);
+  }
+
+  window.addEventListener(SETTINGS_EVENT, () => {
+    syncThemeBtn();
+    syncHueDot();
+  });
+  syncThemeBtn();
+  syncHueDot();
 </script>
 
 <style>
   .topbar {
     position: sticky;
     top: 0;
-    z-index: 50;
+    z-index: var(--z-shell);
     height: var(--m3e-topbar-h);
     /* 色调表面层次而非玻璃拟态。Shirone 规范明确要求"严禁毛玻璃效果"——
        背景模糊会让正文在滚动经过时变得不可读，而顶栏承载导航文字。
@@ -158,6 +242,72 @@ const isActive = (href: string) =>
     font-size: var(--m3e-title-lg-size);
     font-weight: 600;
     letter-spacing: -0.02em;
+  }
+
+  /* 品牌旁的一根"线头"：静止时 14px 高，悬停抽到 26px。
+     150ms 内完成 —— 这是交互反馈，不能用环境动效的时长。
+     刻意用竖条而不是横杠：横杠在站名后面会被读成连字符"-"。 */
+  .brand-thread {
+    width: 4px;
+    height: 14px;
+    border-radius: var(--shape-corner-full);
+    background: var(--primary);
+    transition: height var(--m3e-duration-short3) var(--m3e-easing-emphasized);
+  }
+
+  .brand:hover .brand-thread {
+    height: 26px;
+  }
+
+  /* 站名走展示字体：品牌字在顶栏就该出现，不必等到正文 */
+  .brand-text {
+    font-family: var(--m3e-font-display);
+  }
+
+  /* ---- 明暗切换：一个按钮三枚图标，靠 data-mode 选一枚 ---- */
+  .theme-toggle .ico {
+    display: none;
+    place-items: center;
+  }
+
+  .theme-toggle[data-mode='light'] .ico-light,
+  .theme-toggle[data-mode='dark'] .ico-dark,
+  .theme-toggle[data-mode='auto-dark'] .ico-auto,
+  .theme-toggle[data-mode='auto-light'] .ico-auto {
+    display: grid;
+  }
+
+  /* 图标换完做一次极短的转身：让"状态变了"这件事被看见，
+     但只有 200ms，不至于让一次点击显得拖沓 */
+  @media (prefers-reduced-motion: no-preference) {
+    :root:not(.motion-reduced) .theme-toggle .ico {
+      animation: m3-ico-turn var(--m3e-duration-short4) var(--m3e-easing-emphasized-decelerate) both;
+    }
+  }
+
+  @keyframes m3-ico-turn {
+    from {
+      opacity: 0;
+      transform: rotate(-40deg) scale(0.8);
+    }
+  }
+
+  /* ---- 色相回显点 ---- */
+  .hue-dot {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 8px;
+    height: 8px;
+    border-radius: var(--shape-corner-full);
+    /* 颜色 = 访客当前色相本身（与设置面板的色板同一算法），不是随手挑的一个色 */
+    background: oklch(0.62 0.16 var(--hue-val, 315));
+    box-shadow: 0 0 0 1.5px var(--surface);
+  }
+
+  .hue-dot[data-custom='false'] {
+    /* 出厂色相不必强调"你改过"，压到 55% 即可 */
+    opacity: 0.55;
   }
 
   .nav {
@@ -244,6 +394,14 @@ const isActive = (href: string) =>
 
     .mobile-nav:not([hidden]) {
       display: flex;
+    }
+  }
+
+  /* 顶栏在窄屏要腾出位置给「明暗 + 设置 + 菜单」三枚图标。
+     账号入口收进抽屉，而不是把三枚图标挤成 32px —— 触控目标 48dp 是硬指标。 */
+  @media (max-width: 560px) {
+    .nav-account {
+      display: none;
     }
   }
 </style>

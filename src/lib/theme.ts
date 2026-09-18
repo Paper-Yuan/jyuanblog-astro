@@ -13,6 +13,16 @@ import { THEME_DEFAULTS } from '@/config/site';
 export const STORAGE_KEY = 'jyuanblog:settings';
 export const CSS_CACHE_KEY = 'jyuanblog:theme-css';
 export const CSS_STYLE_ID = 'jyuanblog-theme';
+export const DOCK_KEY = 'jyuanblog:dock';
+
+/**
+ * 设置变更事件名。
+ *
+ * 现在有三个地方会改设置：顶栏的明暗一键切换、悬浮栏的「视图」区、设置面板。
+ * 它们必须互相看得到对方的改动，否则顶栏切了暗色、开着的管理面板还显示"亮"。
+ * 谁写谁广播，别人重新读 —— 比让三处各自维护一份状态副本可靠得多。
+ */
+export const SETTINGS_EVENT = 'jyuanblog:settings-changed';
 
 export type ThemeMode = 'light' | 'dark' | 'auto';
 export type WallpaperMode = 'banner' | 'solid';
@@ -135,4 +145,63 @@ export function isCustomized(s: Settings): boolean {
     s.style !== DEFAULT_SETTINGS.style ||
     s.spec !== DEFAULT_SETTINGS.spec
   );
+}
+
+/**
+ * 改**非色彩**设置的唯一入口。
+ *
+ * 顶栏的明暗切换、悬浮栏的视图区、设置面板都走这里：读全量 → 打补丁 → 落盘
+ * → 应用到 <html> → 广播。少了"广播"这一步，三处界面就会互相看不到对方的改动
+ * （典型症状：顶栏已切成暗色，设置面板里的「明暗」还高亮着"亮"）。
+ *
+ * ⚠️ 色彩相关设置（hue / style）**不要**走这里 —— 那需要 HCT 引擎重算，
+ *    由设置面板动态 import 引擎后调 applyCustomTheme()。
+ */
+export function updateSettings(patch: Partial<Settings>): Settings {
+  const next = { ...readSettings(), ...patch };
+  writeSettings(next);
+  applyAttributes(next);
+  window.dispatchEvent(new CustomEvent<Settings>(SETTINGS_EVENT, { detail: next }));
+  return next;
+}
+
+/* ---- 悬浮栏状态（折叠 / 当前分区） ----------------------------------------
+ * 单独一个键而不是塞进 settings：settings 会被配色引擎整份读改写，
+ * 混进界面布局状态会让两边的写入互相覆盖。
+ * ------------------------------------------------------------------------ */
+export interface DockState {
+  /** true = 面板钉住常开（跨页保持）；false = 只留图标条 */
+  pinned: boolean;
+  /** 当前分区，取值与 SideDock 的 data-pane 一致 */
+  section: DockSection;
+}
+
+export type DockSection = 'categories' | 'tags' | 'music' | 'view';
+
+export const DOCK_DEFAULT: DockState = { pinned: false, section: 'categories' };
+
+const DOCK_SECTIONS: DockSection[] = ['categories', 'tags', 'music', 'view'];
+
+export function readDockState(): DockState {
+  try {
+    const raw = localStorage.getItem(DOCK_KEY);
+    if (!raw) return { ...DOCK_DEFAULT };
+    const parsed = JSON.parse(raw) as Partial<DockState>;
+    return {
+      pinned: parsed.pinned === true,
+      section: DOCK_SECTIONS.includes(parsed.section as DockSection)
+        ? (parsed.section as DockSection)
+        : DOCK_DEFAULT.section,
+    };
+  } catch {
+    return { ...DOCK_DEFAULT };
+  }
+}
+
+export function writeDockState(s: DockState): void {
+  try {
+    localStorage.setItem(DOCK_KEY, JSON.stringify(s));
+  } catch {
+    /* 隐私模式下 localStorage 可能不可用，忽略 */
+  }
 }

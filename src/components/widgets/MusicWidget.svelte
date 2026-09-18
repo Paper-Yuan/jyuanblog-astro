@@ -17,9 +17,15 @@
 
   interface Props {
     tracks?: Track[];
+    /**
+     * 裸形态：去掉卡片外壳与自己的标题行。
+     * 挂进常驻悬浮栏的面板时用 —— 面板本身已是 28px 浮层、标题栏已写明「音乐」，
+     * 再套一张 16px 的卡片就会出现"浮层里浮层"的双层圆角与双标题。
+     */
+    bare?: boolean;
   }
 
-  const { tracks = [] } = $props();
+  const { tracks = [], bare = false } = $props();
 
   let index = $state(0);
   let playing = $state(false);
@@ -103,11 +109,13 @@
 </script>
 
 {#if current}
-  <div class="m3-card widget music">
-    <p class="head type-label-lg">
-      <span>音乐</span>
-      <span class="n type-label-md">{index + 1} / {tracks.length}</span>
-    </p>
+  <div class:list={{ music: true, widget: !bare, 'm3-card': !bare }}>
+    {#if !bare}
+      <p class="head type-label-lg">
+        <span>音乐</span>
+        <span class="n type-label-md">{index + 1} / {tracks.length}</span>
+      </p>
+    {/if}
 
     <div class="now">
       {#if current.coverUrl}

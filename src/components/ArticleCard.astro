@@ -78,6 +78,30 @@ const titleClass = 'title';
     border: 1px solid var(--outline-variant);
   }
 
+  /* ---- 悬停时拉下的那根线 -----------------------------------------------
+     整卡是 stretched-link，但只有标题看起来像链接，指向信号不够。
+     左边贴一根"经线"自上而下拉满，等于说"这整块都是入口"，
+     同时它是本站母题的一部分 —— 提示与性格一次做到，不必再叠一层阴影。
+     注意它 pointer-events: none，绝不吃卡片的点击。
+     --------------------------------------------------------------------- */
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 2;
+    width: 2px;
+    height: 0;
+    background: linear-gradient(180deg, var(--primary), var(--tertiary));
+    pointer-events: none;
+    transition: height var(--m3e-duration-medium1) var(--m3e-easing-emphasized-decelerate);
+  }
+
+  .card:hover::before,
+  .card:focus-within::before {
+    height: 100%;
+  }
+
   /* 标题里的链接铺满整卡，实现"整卡可点"而不嵌套 <a> */
   .link {
     color: inherit;

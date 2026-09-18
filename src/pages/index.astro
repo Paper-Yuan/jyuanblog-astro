@@ -1,37 +1,130 @@
 ---
+/**
+ * 首页。
+ *
+ * 首屏刻意**不做**"居中大标题 + 两个按钮"那种模板脸：
+ *   · 左栏是名号（站名走展示字体 + 一条织出来的纬线 + 三个入口）
+ *   · 右栏是「机杼·近一年」—— 用最近 12 个月的发布量画的节奏条，
+ *     数据来自构建期的文章列表，所以它既是母题也是信息，
+ *     不是贴一张装饰图。
+ * 两栏在 900px 以下叠成一列，节奏条挪到名号下方。
+ */
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import ArticleCard from '@/components/ArticleCard.astro';
 import Icon from '@/components/Icon.astro';
 import WidgetSidebar from '@/components/WidgetSidebar.astro';
-import { getArticles, getPopular, getCategories } from '@/lib/api';
+import { getArticles, getPopular } from '@/lib/api';
 import { SITE } from '@/config/site';
 
-const [{ list: articles }, popular, categories] = await Promise.all([
+const [{ list: articles }, popular, all] = await Promise.all([
   getArticles({ page: 1, pageSize: SITE.pageSize }),
   getPopular(5).catch(() => []),
-  getCategories().catch(() => []),
+  // 节奏条要跨月聚合，首页那 8 条不够看。取全量（构建期请求已带备忘录，
+  // 与侧栏 StatsWidget 命中同一条缓存，不多花一次请求）
+  getArticles({ page: 1, pageSize: 100 }).then((d) => d.list).catch(() => []),
 ]);
 
 const [feature, ...rest] = articles;
+
+/**
+ * 最近 12 个月的发布量。
+ *
+ * ★ 时区：文章的 createdAt 是 UTC 串，直接 getMonth() 会按运行环境时区解释，
+ *   构建机与访客看到的月份可能差一格。统一过 SITE.timeZone（与发布日历同一做法）。
+ */
+function monthKey(iso: string) {
+  const [y, m] = new Intl.DateTimeFormat('en-CA', {
+    timeZone: SITE.timeZone,
+    year: 'numeric',
+    month: '2-digit',
+  })
+    .format(new Date(iso))
+    .split('-');
+  return `${y}-${m}`;
+}
+
+const now = new Date();
+const months = Array.from({ length: 12 }, (_, i) => {
+  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (11 - i), 1));
+  const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+  return { key, label: String(Number(d.getUTCMonth() + 1)), n: 0, current: i === 11 };
+});
+{
+  const idx = new Map(months.map((m, i) => [m.key, i]));
+  for (const a of all) {
+    const i = idx.get(monthKey(a.createdAt));
+    if (i !== undefined) months[i].n += 1;
+  }
+}
+const peak = Math.max(1, ...months.map((m) => m.n));
+const activeMonths = months.filter((m) => m.n > 0).length;
+const publishedLast12 = months.reduce((s, m) => s + m.n, 0);
 ---
 
 <BaseLayout>
-  <!-- Hero -->
-  <section class="hero">
-    <h1 class="type-display-md">{SITE.title}</h1>
-    <p class="sub type-body-lg">{SITE.subtitle}</p>
-    <div class="hero-actions">
-      <a href="/blog" class="m3-button m3-button--filled">浏览全部文章</a>
-      <a href="/search" class="m3-button m3-button--outlined">
-        <Icon name="search" size={16} /> 搜索
-      </a>
+  <!-- ===================== 首屏：名号 + 机杼 ===================== -->
+  <section class="masthead">
+    <div class="mast-copy">
+      <p class="kicker type-label-lg">
+        <span class="m3-accent-bar" aria-hidden="true"></span>
+        机杼 · 机巧 · 百变机关
+      </p>
+
+      <h1 class="wordmark">{SITE.title}</h1>
+      <!-- 纬线：从左抽到右的入场动画把视线带向下方的入口区。
+           默认状态就是满宽可见的，动画只负责"演进来"（三条铁律之一） -->
+      <span class="thread-rule thread-rule--animated" aria-hidden="true"></span>
+
+      <p class="sub type-body-lg">{SITE.subtitle}</p>
+
+      <div class="mast-actions">
+        <a href="/blog" class="m3-button m3-button--filled">浏览全部文章</a>
+        <a href="/search" class="m3-button m3-button--outlined">
+          <Icon name="search" size={16} /> 搜索
+        </a>
+        <a href="/timeline" class="m3-button m3-button--text">
+          <Icon name="flag" size={16} /> 时间线
+        </a>
+      </div>
     </div>
+
+    <!-- 机杼·近一年：12 根经线位，发布过的月份压上纬线 -->
+    <figure class="loom m3-reveal">
+      <div
+        class="loom-plate pulse"
+        role="img"
+        aria-label={`最近 12 个月共发布 ${publishedLast12} 篇，其中 ${activeMonths} 个月有落笔，峰值 ${peak} 篇每月`}
+      >
+        <span class="loom-kite" aria-hidden="true"></span>
+        <div class="bars">
+          {
+            months.map((m) => (
+              <div
+                class={`bar${m.n ? ' has' : ''}${m.current ? ' now' : ''}`}
+                style={`--h:${m.n ? Math.max(12, Math.round((m.n / peak) * 100)) : 3}%`}
+                title={`${m.key} · ${m.n} 篇`}
+              >
+                <span class="bar-n">{m.n || ''}</span>
+                <span class="bar-fill" aria-hidden="true"></span>
+                <span class="bar-lab type-label-sm">{m.label}</span>
+              </div>
+            ))
+          }
+        </div>
+      </div>
+      <figcaption class="loom-cap type-body-sm">
+        <span>机杼 · 近一年</span>
+        <span class="loom-meta">{activeMonths} 个月有落笔 · 峰值 {peak} 篇/月</span>
+      </figcaption>
+    </figure>
   </section>
 
   <!--
     主区 + 侧栏。
     栅格只在 >= 1200px 摆成两列 —— 断点必须与「主列不变量」反推一致：
     主列 >= 840px（版心契约）+ 侧栏 280 + 间隙 24 = 1144，容器 1200 够用。
+    >= 1280px 时版心再加宽 64+24，多出来的一格给常驻悬浮栏的图标条，
+    主列仍然是 840 —— 加栏不挤正文，见 variables.css 的 --m3e-content-max-wide。
     若更早就摆两列（比如 1024px），主列会被压到 700 出头，
     卡片网格退化成单列窄条 —— 加了侧栏反而更难看，且不会报错。
   -->
@@ -40,7 +133,9 @@ const [feature, ...rest] = articles;
       <!-- 最新文章 -->
       <section class="section">
         <header class="section-head">
-          <h2 class="type-headline-sm">最新文章</h2>
+          <h2 class="type-headline-sm">
+            <span class="m3-accent-bar" aria-hidden="true"></span>最新文章
+          </h2>
           <a href="/blog" class="more type-label-lg">全部 →</a>
         </header>
 
@@ -58,12 +153,17 @@ const [feature, ...rest] = articles;
         }
       </section>
 
-      <!-- 热门 + 分类 -->
-      <section class="two-col">
-        {
-          popular.length > 0 && (
+      <!-- 热门：分类与标签已搬去常驻悬浮栏，这里不再重复一份 -->
+      {
+        popular.length > 0 && (
+          <section class="section">
+            <header class="section-head">
+              <h2 class="type-headline-sm">
+                <span class="m3-accent-bar" aria-hidden="true"></span>热门文章
+              </h2>
+              <span class="more type-body-sm text-muted">按阅读量</span>
+            </header>
             <div class="m3-card panel">
-              <h2 class="type-title-lg panel-title">热门文章</h2>
               <ol class="popular">
                 {popular.map((a, i) => (
                   <li>
@@ -74,25 +174,9 @@ const [feature, ...rest] = articles;
                 ))}
               </ol>
             </div>
-          )
-        }
-
-        {
-          categories.length > 0 && (
-            <div class="m3-card panel">
-              <h2 class="type-title-lg panel-title">分类</h2>
-              <div class="cats">
-                {categories.map((c) => (
-                  <a href={`/categories/${c.slug}`} class="m3-chip">
-                    <Icon name="folder" size={14} /> {c.name}
-                    <span class="muted">{c.articleCount ?? 0}</span>
-                  </a>
-                ))}
-              </div>
-            </div>
-          )
-        }
-      </section>
+          </section>
+        )
+      }
     </div>
 
     <WidgetSidebar articles={articles} />
@@ -100,15 +184,147 @@ const [feature, ...rest] = articles;
 </BaseLayout>
 
 <style>
-  .hero {
-    padding: var(--m3e-space-5) 0 var(--m3e-space-4);
-    text-align: center;
+  /* ---- 首屏 ---- */
+  .masthead {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--m3e-space-8);
+    align-items: center;
+    padding: var(--m3e-space-8) 0 var(--m3e-space-5);
+  }
+
+  @media (min-width: 900px) {
+    .masthead {
+      /* 名号占主文区，机杼板固定宽度：正文列宽与它无关，不会被它挤 */
+      grid-template-columns: minmax(0, 1fr) minmax(240px, 360px);
+    }
+  }
+
+  .kicker {
+    display: flex;
+    align-items: center;
+    gap: var(--m3e-space-3);
+    margin: 0;
+    color: var(--on-surface-variant);
+    letter-spacing: 0.08em;
   }
 
   /*
-   * 主区 + 侧栏。默认单列（侧栏落到主区下方），
-   * 只在 xl 断点摆成两列 —— 理由见模板里的注释。
+   * 站名。刻意**不做**渐变字：
+   * 粉→紫的渐变标题是"AI 做的页面"最典型的指纹之一，
+   * 而且渐变压在小字号上会糊。这里让品牌字自己说话（霞鹜文楷子集），
+   * 颜色用 on-surface，对比度 12:1 以上。
    */
+  .wordmark {
+    margin: var(--m3e-space-4) 0 0;
+    font-family: var(--m3e-font-display);
+    font-size: var(--m3e-display-lg-size);
+    line-height: var(--m3e-display-lg-line);
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    color: var(--on-surface);
+  }
+
+  .thread-rule {
+    margin-top: var(--m3e-space-4);
+  }
+
+  .sub {
+    margin-top: var(--m3e-space-4);
+    color: var(--on-surface-variant);
+  }
+
+  .mast-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--m3e-space-3);
+    margin-top: var(--m3e-space-6);
+  }
+
+  /* ---- 机杼·近一年 ---- */
+  .loom {
+    margin: 0;
+  }
+
+  .loom-plate {
+    padding: var(--m3e-space-4) var(--m3e-space-3) var(--m3e-space-2);
+  }
+
+  .pulse {
+    position: relative;
+    /* 让经线板露出一点"未织满"的空档：高度固定，条子在其中自下而上 */
+    min-height: 132px;
+  }
+
+  .bars {
+    position: relative;
+    z-index: 2;
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    align-items: end;
+    gap: 3px;
+    height: 104px;
+  }
+
+  .bar {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+    height: 100%;
+    gap: 3px;
+  }
+
+  .bar-fill {
+    width: 100%;
+    height: var(--h, 3%);
+    border-radius: var(--shape-corner-xs) var(--shape-corner-xs) 2px 2px;
+    background: var(--surface-container-highest);
+    transition: height var(--m3e-duration-medium2) var(--m3e-easing-emphasized);
+  }
+
+  /* 有发布的月份才染主题色 —— 空档保持容器色，一眼能看出"这几个月没写" */
+  .bar.has .bar-fill {
+    background: var(--primary-container);
+  }
+
+  .bar.now .bar-fill {
+    background: var(--primary);
+  }
+
+  .bar-n {
+    font-size: var(--m3e-label-sm-size);
+    font-variant-numeric: tabular-nums;
+    color: var(--on-surface-variant);
+    min-height: 1em;
+  }
+
+  .bar-lab {
+    color: var(--on-surface-variant);
+    font-variant-numeric: tabular-nums;
+    opacity: 0.75;
+  }
+
+  .loom-cap {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--m3e-space-3);
+    margin-top: var(--m3e-space-3);
+    color: var(--on-surface-variant);
+  }
+
+  .loom-cap > span:first-child {
+    font-family: var(--m3e-font-display);
+    font-weight: 500;
+    color: var(--on-surface);
+  }
+
+  .loom-meta {
+    text-align: right;
+  }
+
+  /* ---- 主区 + 侧栏 ---- */
   .page-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -126,40 +342,27 @@ const [feature, ...rest] = articles;
     min-width: 0;
   }
 
-  .hero h1 {
-    letter-spacing: -0.02em;
-    background: linear-gradient(120deg, var(--primary), var(--tertiary) 85%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
-
-  .sub {
-    margin-top: var(--m3e-space-3);
-    color: var(--on-surface-variant);
-  }
-
-  .hero-actions {
-    display: flex;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: var(--m3e-space-3);
-    margin-top: var(--m3e-space-6);
-  }
-
   .section {
-    margin-top: var(--m3e-space-5);
+    margin-top: var(--m3e-space-8);
   }
 
   .section-head {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
+    gap: var(--m3e-space-4);
     margin-bottom: var(--m3e-space-5);
+  }
+
+  .section-head h2 {
+    display: flex;
+    align-items: center;
+    gap: var(--m3e-space-3);
   }
 
   .more {
     color: var(--primary);
+    white-space: nowrap;
   }
 
   .grid {
@@ -172,12 +375,11 @@ const [feature, ...rest] = articles;
     grid-template-columns: 1fr;
   }
 
-
-  .two-col {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    gap: var(--m3e-space-5);
-    margin-top: var(--m3e-space-8);
+  /* 首卡通栏：宽屏上第一张卡横贯两列，制造"错落"而不是等大方阵 */
+  @media (min-width: 1200px) {
+    .grid > :global(.card):first-child {
+      grid-column: 1 / -1;
+    }
   }
 
   /* 与 ArticleCard 保持同一种容器语言：面板底色与页底仅差 1.05:1，需描边才有边界 */
@@ -185,15 +387,11 @@ const [feature, ...rest] = articles;
     border: 1px solid var(--outline-variant);
   }
 
-  .panel-title {
-    margin-bottom: var(--m3e-space-4);
-  }
-
   .popular {
     list-style: none;
-    display: flex;
-    flex-direction: column;
-    gap: var(--m3e-space-1);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: var(--m3e-space-1) var(--m3e-space-6);
   }
 
   .popular li {
@@ -223,12 +421,6 @@ const [feature, ...rest] = articles;
     text-overflow: ellipsis;
     white-space: nowrap;
     color: var(--on-surface);
-  }
-
-  .cats {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--m3e-space-2);
   }
 
   .muted {

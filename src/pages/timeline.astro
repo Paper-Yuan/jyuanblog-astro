@@ -36,8 +36,11 @@ const catMap = new Map(TIMELINE.categories.map((c) => [c.key, c]));
 
 <BaseLayout title="时间线" description="以节点流展示的经历与里程碑">
   <header class="head">
-    <h1 class="type-headline-lg">时间线</h1>
+    <h1 class="type-headline-lg">
+      <span class="m3-accent-bar" aria-hidden="true"></span>时间线
+    </h1>
     <p class="sub type-body-lg">一路做过的项目与经历，按时间倒序</p>
+    <span class="thread-rule thread-rule--animated" aria-hidden="true"></span>
   </header>
 
   <!-- 分类筛选片。用 button 而非链接：它是同页筛选，不是导航 -->
@@ -140,6 +143,7 @@ const catMap = new Map(TIMELINE.categories.map((c) => [c.key, c]));
 -->
 <script>
   const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('.filters [data-filter]'));
+  const stream = document.getElementById('stream');
   const nodes = Array.from(document.querySelectorAll<HTMLLIElement>('#stream .node'));
   const emptyMsg = document.querySelector<HTMLParagraphElement>('.empty');
 
@@ -157,6 +161,14 @@ const catMap = new Map(TIMELINE.categories.map((c) => [c.key, c]));
       b.classList.toggle('is-active', active);
       b.setAttribute('aria-pressed', String(active));
     }
+
+    /*
+     * 打上"已经筛过"的标记，CSS 才给节点挂归位动画（见下方 .stream[data-filtered]）。
+     * 为什么要这个标记：入场动画若从首屏就挂着，读者第一次滚动看到的是一串
+     * 依次飞进来的卡片，那与"筛选后重新排布"是两件事 —— 前者是装饰，
+     * 后者才真的在解释"列表变了"。只在筛选之后才演，动效才有信息价值。
+     */
+    stream?.setAttribute('data-filtered', filter);
   }
 
   for (const b of buttons) {
@@ -167,6 +179,16 @@ const catMap = new Map(TIMELINE.categories.map((c) => [c.key, c]));
 <style>
   .head {
     padding: var(--m3e-space-5) 0 var(--m3e-space-4);
+  }
+
+  .head h1 {
+    display: flex;
+    align-items: center;
+    gap: var(--m3e-space-3);
+  }
+
+  .head .thread-rule {
+    margin-top: var(--m3e-space-4);
   }
 
   .sub {
@@ -211,7 +233,13 @@ const catMap = new Map(TIMELINE.categories.map((c) => [c.key, c]));
     top: 8px;
     bottom: 8px;
     width: 2px;
-    background: var(--outline-variant);
+    /* 主轴不是实线而是一段段的线：时间线在这个站里的母题就是"一条织出来的线"，
+       节点是打在这条线上的结。用 --loom-weft（描边色掺主色）保证它跟随主题色相 */
+    background: repeating-linear-gradient(
+      180deg,
+      var(--loom-weft) 0 6px,
+      transparent 6px 12px
+    );
   }
 
   .node {
@@ -314,6 +342,47 @@ const catMap = new Map(TIMELINE.categories.map((c) => [c.key, c]));
     padding: var(--m3e-space-8) 0;
     text-align: center;
     color: var(--on-surface-variant);
+  }
+
+  /* ---- 筛选后的归位动画 -------------------------------------------------
+     位移方向沿主轴（从左归位），配合依次递增的延迟，读起来是
+     "这条线重新排过了"，而不是"卡片在跳舞"。
+     ⚠️ fill-mode 用 backwards 不用 both：both 会把终态也锁在动画上，
+        一旦 keyframes 与元素自身样式有差，动画不跑时元素就停在错的状态。
+        这里要的是"演完就交还给元素本身（默认可见）"。
+     -------------------------------------------------------------------- */
+  @media (prefers-reduced-motion: no-preference) {
+    :root:not(.motion-reduced) .stream[data-filtered] .node:not([hidden]) {
+      animation-name: m3-knot-in;
+      animation-duration: var(--m3e-duration-medium2);
+      animation-timing-function: var(--m3e-easing-emphasized-decelerate);
+      animation-fill-mode: backwards;
+    }
+
+    :root:not(.motion-reduced) .stream[data-filtered] .node:nth-child(2) { animation-delay: 40ms; }
+    :root:not(.motion-reduced) .stream[data-filtered] .node:nth-child(3) { animation-delay: 80ms; }
+    :root:not(.motion-reduced) .stream[data-filtered] .node:nth-child(4) { animation-delay: 120ms; }
+    :root:not(.motion-reduced) .stream[data-filtered] .node:nth-child(5) { animation-delay: 160ms; }
+    :root:not(.motion-reduced) .stream[data-filtered] .node:nth-child(6) { animation-delay: 200ms; }
+    /* 第 7 条起封顶：再往后排就变成"页面卡了一下才开始" */
+    :root:not(.motion-reduced) .stream[data-filtered] .node:nth-child(n + 7) { animation-delay: 220ms; }
+  }
+
+  /* 筛选片本身：选中时的形状反馈（chip 胶囊 → 按下收紧） */
+  .filters .m3-chip {
+    transition:
+      background var(--m3e-duration-short2) var(--m3e-easing-standard),
+      color var(--m3e-duration-short2) var(--m3e-easing-standard),
+      border-color var(--m3e-duration-short2) var(--m3e-easing-standard),
+      transform var(--m3e-duration-short2) var(--m3e-easing-emphasized-decelerate);
+  }
+
+  .filters .m3-chip:active {
+    transform: scale(0.96);
+  }
+
+  .filters .is-active {
+    box-shadow: var(--m3e-elevation-1);
   }
 
   @media (max-width: 640px) {

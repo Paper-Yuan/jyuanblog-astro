@@ -49,8 +49,8 @@ const recent = [...byMonth.entries()]
 
 {
   recent.length > 0 && (
-    <div class="m3-card widget calendar">
-      <p class="head type-label-lg">发布日历</p>
+    <div class="m3-card widget calendar m3-reveal">
+      <p class="head type-label-lg"><span class="m3-accent-bar" aria-hidden="true"></span>发布日历</p>
       {recent.map(([key, items]) => {
         const [y, m] = key.split('-');
         const days = new Set(items.map((i) => i.day));
@@ -102,6 +102,9 @@ const recent = [...byMonth.entries()]
   }
 
   .head {
+    display: flex;
+    align-items: center;
+    gap: var(--m3e-space-2);
     margin: 0 0 var(--m3e-space-3);
     color: var(--on-surface-variant);
   }

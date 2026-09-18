@@ -79,7 +79,18 @@ interface Envelope<T> {
  */
 const API_BASE_URL = import.meta.env.JYUANBLOG_API_URL || 'http://127.0.0.1:8787/api';
 
+/**
+ * 构建期请求备忘录。
+ *
+ * 一次 astro build 会渲染上百个页面，而侧栏部件与常驻悬浮栏在每页都要同一批
+ * 数据（分类、标签、曲目）。没有这层缓存就是"每页 × 每个端点"次请求：
+ * 60 页 × 3 端点 = 180 次，构建时间被纯粹重复的取数拖长，而结果永远一样
+ * —— 构建期数据源不会变。缓存放在模块作用域，进程结束即失效，无需考虑过期。
+ */
+const memo = new Map<string, unknown>();
+
 async function apiGet<T>(path: string): Promise<T | null> {
+  if (memo.has(path)) return memo.get(path) as T | null;
   const url = `${API_BASE_URL}${path}`;
   // 必须带超时：构建期若 API 不可达，不该让 astro build 挂住几分钟才降级
   const controller = new AbortController();
@@ -98,6 +109,7 @@ async function apiGet<T>(path: string): Promise<T | null> {
       console.warn(`[api] ${path} -> code ${body.code}: ${body.message}`);
       return null;
     }
+    memo.set(path, body.data);
     return body.data;
   } catch (err) {
     const e = err as Error;

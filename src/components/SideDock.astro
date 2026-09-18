@@ -1,0 +1,537 @@
+---
+/**
+ * 常驻悬浮栏 ——「机杼匣」。
+ *
+ * 站内所有"选择"都收在这里：分类、标签、音乐播放器，以及视图选择
+ * （列表布局 / 明暗 / 减少动效）。它挂在 BaseLayout 里，所以**每一页都在**，
+ * 且与顶栏一样通过 view-transition-name 在翻页时保持同一元素身份。
+ *
+ * 三档形态：
+ *   ≥1280px  右侧 64px 图标条（在栅格里占一格），面板向左展开成 280px 浮层
+ *   <1280px  贴底的居中药丸图标条，面板从底部升起成抽屉 + 遮罩
+ *
+ * ★ 为什么展开的面板是**浮层**而不是栅格里的一格：
+ *   版心契约要求主列 >= 840px 且是**不变量**。若面板也占一格，
+ *   展开时主列会被挤到 624px（840+24+280+24+64 已经用满了 1280 的版心），
+ *   读者一开面板正文就塌 —— 所以面板绝对定位盖在内容之上，宽度不变。
+ *
+ * ★ 为什么用实底而不是半透明/毛玻璃：
+ *   顶栏禁 backdrop-filter 的断言同样适用于压在正文上的浮层。
+ *   这里用 surface-container-low + 发丝线 + elevation-3 做"浮起来"的层次。
+ *   （用户提过想要半透明 —— 这与契约冲突，已作为待决项上报，未擅自放开。）
+ */
+import Icon from './Icon.astro';
+import CategoriesWidget from './widgets/CategoriesWidget.astro';
+import TagsWidget from './widgets/TagsWidget.astro';
+import MusicWidget from './widgets/MusicWidget.svelte';
+import { getCategories, getTags, getTracks } from '@/lib/api';
+import { MUSIC } from '@/config/music';
+import type { IconName } from '@/lib/icons';
+
+const [categories, tags, tracks] = await Promise.all([
+  getCategories().catch(() => []),
+  getTags().catch(() => []),
+  MUSIC.enable ? getTracks().catch(() => []) : Promise.resolve([]),
+]);
+
+/**
+ * 分区清单。空分区**不进栏** —— 与其放一个点开是空的图标，
+ * 不如让它不存在（与音乐部件既有的"零 DOM 契约"同一个取向）。
+ */
+const panes = [
+  { key: 'categories', label: '分类', icon: 'folder' as IconName, count: categories.length },
+  { key: 'tags', label: '标签', icon: 'tag' as IconName, count: tags.length },
+  { key: 'music', label: '音乐', icon: 'music' as IconName, count: tracks.length },
+  { key: 'view', label: '视图', icon: 'tune' as IconName, count: 1 },
+].filter((p) => p.count > 0);
+---
+
+<aside class="dock" id="dock" data-pane={panes[0].key} data-collapsed="true" aria-label="侧栏工具">
+  <!-- 图标条：宽屏竖排在正文右侧，窄屏横排贴底。同一份 DOM，只换 CSS 方向 -->
+  <div class="rail" role="toolbar" aria-label="站点工具">
+    {
+      panes.map((p) => (
+        <button
+          type="button"
+          class="rail-btn"
+          data-section={p.key}
+          aria-controls="dock-panel"
+          aria-expanded="false"
+          title={p.label}
+        >
+          <Icon name={p.icon} size={20} />
+          <span class="rail-label">{p.label}</span>
+        </button>
+      ))
+    }
+    <span class="rail-thread" aria-hidden="true"></span>
+  </div>
+
+  <!-- 展开面板 -->
+  <section
+    class="panel m3-sheet"
+    id="dock-panel"
+    aria-label="悬浮栏面板"
+    tabindex="-1"
+  >
+    <span class="m3-handle" aria-hidden="true"></span>
+
+    <header class="panel-head">
+      <span class="m3-accent-bar" aria-hidden="true"></span>
+      {
+        panes.map((p) => (
+          <h2 class="pane-name type-title-md" data-pane-name={p.key}>
+            {p.label}
+            <span class="pane-count type-label-md">{p.count > 1 ? p.count : ''}</span>
+          </h2>
+        ))
+      }
+      <div class="panel-actions">
+        <button
+          type="button"
+          class="m3-icon-btn"
+          data-pin
+          aria-pressed="false"
+          title="钉住：翻页后仍保持展开"
+        >
+          <Icon name="pin" size={18} />
+        </button>
+        <button type="button" class="m3-icon-btn" data-dock-close aria-label="收起面板">
+          <Icon name="close" size={18} />
+        </button>
+      </div>
+    </header>
+
+    <div class="panel-body">
+      <div class="pane" data-pane-key="categories">
+        <CategoriesWidget />
+      </div>
+      <div class="pane" data-pane-key="tags">
+        <TagsWidget />
+      </div>
+      <div class="pane" data-pane-key="music">
+        {MUSIC.enable && tracks.length > 0 && <MusicWidget tracks={tracks} bare client:visible />}
+      </div>
+
+      <!-- 视图选择：所有"界面开关"的落脚点。写设置一律走 updateSettings，
+           与顶栏的明暗按钮、设置面板共用同一份存储与同一条广播 -->
+      <div class="pane" data-pane-key="view">
+        <p class="pane-label type-label-lg">文章列表</p>
+        <div class="m3-segmented" role="radiogroup" aria-label="文章列表布局" data-choice="layout">
+          <button type="button" role="radio" aria-checked="false" data-value="grid">网格</button>
+          <button type="button" role="radio" aria-checked="false" data-value="list">列表</button>
+        </div>
+
+        <p class="pane-label type-label-lg">明暗</p>
+        <div class="m3-segmented" role="radiogroup" aria-label="明暗模式" data-choice="mode">
+          <button type="button" role="radio" aria-checked="false" data-value="light">亮</button>
+          <button type="button" role="radio" aria-checked="false" data-value="dark">暗</button>
+          <button type="button" role="radio" aria-checked="false" data-value="auto">跟随</button>
+        </div>
+
+        <label class="switch-row">
+          <input type="checkbox" class="m3-switch" data-choice="reduceMotion" />
+          <span>减少动效</span>
+        </label>
+
+        <p class="foot type-body-sm">
+          配色、纹理等更多选项在顶栏右上角的「显示设置」里。
+        </p>
+        <button type="button" class="m3-button m3-button--tonal" data-open-settings>
+          <Icon name="settings" size={16} /> 打开显示设置
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 遮罩只在窄屏（面板变成底部抽屉时）出现，见下方媒体查询 -->
+  <div class="dock-scrim" data-dock-scrim></div>
+</aside>
+
+<script>
+  import {
+    readSettings,
+    updateSettings,
+    readDockState,
+    writeDockState,
+    SETTINGS_EVENT,
+    type DockSection,
+    type Settings,
+  } from '@/lib/theme';
+
+  const dock = document.getElementById('dock');
+
+  if (dock) {
+    const btns = Array.from(dock.querySelectorAll<HTMLButtonElement>('.rail-btn[data-section]'));
+    const pinBtn = dock.querySelector<HTMLButtonElement>('[data-pin]');
+    const closeBtn = dock.querySelector<HTMLButtonElement>('[data-dock-close]');
+    const scrim = dock.querySelector<HTMLElement>('[data-dock-scrim]');
+    const panel = dock.querySelector<HTMLElement>('#dock-panel');
+    const available = new Set(btns.map((b) => b.dataset.section));
+
+    let state = readDockState();
+    // 存的分区在这一页可能根本不存在（例如那篇文章站点没有曲目，音乐分区不进栏）
+    if (!available.has(state.section)) state = { ...state, section: btns[0]?.dataset.section as DockSection };
+
+    function render() {
+      dock!.dataset.pane = state.section;
+      dock!.dataset.collapsed = String(!state.pinned);
+      for (const b of btns) {
+        const on = state.pinned && b.dataset.section === state.section;
+        b.setAttribute('aria-expanded', String(on));
+        b.classList.toggle('is-active', on);
+      }
+      pinBtn?.setAttribute('aria-pressed', String(state.pinned));
+    }
+
+    function commit(next: Partial<typeof state>) {
+      state = { ...state, ...next };
+      writeDockState(state);
+      render();
+    }
+
+    for (const b of btns) {
+      b.addEventListener('click', () => {
+        const section = b.dataset.section as DockSection;
+        // 再点同一个图标 = 收起（和浏览器的书签栏抽屉一个手感）
+        if (state.pinned && state.section === section) commit({ pinned: false });
+        else commit({ pinned: true, section });
+      });
+    }
+
+    const collapse = () => {
+      commit({ pinned: false });
+      btns.find((b) => b.dataset.section === state.section)?.focus();
+    };
+    closeBtn?.addEventListener('click', collapse);
+    scrim?.addEventListener('click', collapse);
+    pinBtn?.addEventListener('click', () => commit({ pinned: !state.pinned }));
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && state.pinned) collapse();
+    });
+
+    /* ---- 视图选择 ---- */
+    const groups = Array.from(dock.querySelectorAll<HTMLElement>('[data-choice]:not(.m3-switch)'));
+    const motionSwitch = dock.querySelector<HTMLInputElement>('input[data-choice="reduceMotion"]');
+    const settingsBtn = dock.querySelector<HTMLButtonElement>('[data-open-settings]');
+
+    function syncView(s: Settings) {
+      for (const g of groups) {
+        const key = g.dataset.choice as keyof Settings;
+        for (const opt of g.querySelectorAll<HTMLElement>('[data-value]')) {
+          opt.setAttribute('aria-checked', String(String(s[key]) === opt.dataset.value));
+        }
+      }
+      if (motionSwitch) motionSwitch.checked = Boolean(s.reduceMotion);
+    }
+
+    for (const g of groups) {
+      g.addEventListener('click', (e) => {
+        const opt = (e.target as HTMLElement).closest<HTMLElement>('[data-value]');
+        if (!opt || !g.contains(opt)) return;
+        const key = g.dataset.choice as keyof Settings;
+        updateSettings({ [key]: opt.dataset.value } as unknown as Partial<Settings>);
+      });
+    }
+
+    motionSwitch?.addEventListener('change', () => {
+      updateSettings({ reduceMotion: motionSwitch.checked });
+    });
+
+    settingsBtn?.addEventListener('click', () => {
+      document.getElementById('settings-trigger')?.click();
+    });
+
+    window.addEventListener(SETTINGS_EVENT, (e) => {
+      syncView((e as CustomEvent<Settings>).detail ?? readSettings());
+    });
+
+    syncView(readSettings());
+    render();
+
+    /*
+     * 面板展开时把焦点移进去：窄屏上它是抽屉，键盘用户点开却看不见焦点移动，
+     * 下一步 Tab 会跳回页面顶部，像失灵了一样。
+     * 只在"由图标条触发展开"时移焦点，翻页恢复展开态时不动（那不该抢焦点）。
+     */
+    let wasCollapsed = dock.dataset.collapsed === 'true';
+    new MutationObserver(() => {
+      const nowCollapsed = dock.dataset.collapsed === 'true';
+      if (wasCollapsed && !nowCollapsed) panel?.focus({ preventScroll: true });
+      wasCollapsed = nowCollapsed;
+    }).observe(dock, { attributes: true, attributeFilter: ['data-collapsed'] });
+  }
+</script>
+
+<style>
+  .dock {
+    position: relative;
+    z-index: var(--z-dock);
+    /* 翻页时悬浮栏不参与淡入淡出 —— 它是常驻外壳的一部分，和顶栏同理。
+       同名元素每页必须唯一（BaseLayout 只在 showNav 时渲染它）。 */
+    view-transition-name: dock;
+  }
+
+  /* ---- 图标条：窄屏档（贴底药丸） -------------------------------------- */
+  .rail {
+    position: fixed;
+    /* 只钉 left + 用 transform 居中。若把 left 和 right 同时设成 50%，
+       元素宽度会被拉成 0（只剩内边距），图标条会竖成一根 10px 的细条 ——
+       而 CSS 完全不报错，肉眼在窄屏上才发现。 */
+    bottom: var(--m3e-space-4);
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: var(--m3e-space-1);
+    padding: var(--m3e-space-1);
+    border: 1px solid var(--outline-variant);
+    border-radius: var(--shape-corner-xl);
+    background: var(--surface-container);
+    box-shadow: var(--m3e-elevation-3);
+  }
+
+  .rail-btn {
+    display: grid;
+    place-items: center;
+    gap: 1px;
+    width: 60px;
+    min-height: var(--m3e-space-10);
+    padding: var(--m3e-space-1) 0;
+    border: none;
+    border-radius: var(--shape-corner-l);
+    background: transparent;
+    color: var(--on-surface-variant);
+    cursor: pointer;
+    transition:
+      background var(--m3e-duration-short2) var(--m3e-easing-standard),
+      color var(--m3e-duration-short2) var(--m3e-easing-standard),
+      /* 形状形变：选中时从卡片档 16px 收成胶囊档 —— M3E 用形状说"我在这儿" */
+      border-radius var(--m3e-duration-medium1) var(--m3e-easing-emphasized);
+  }
+
+  .rail-btn:hover {
+    background: color-mix(in srgb, var(--on-surface) 8%, transparent);
+    color: var(--on-surface);
+  }
+
+  .rail-btn.is-active {
+    background: var(--secondary-container);
+    color: var(--on-secondary-container);
+    border-radius: var(--shape-corner-full);
+  }
+
+  .rail-label {
+    font-size: var(--m3e-label-sm-size);
+    line-height: 1.2;
+    font-weight: 500;
+  }
+
+  /* 经线：图标条末端一小段织线，交代"这是一台织机"，不参与交互 */
+  .rail-thread {
+    display: none;
+  }
+
+  /* ---- 面板：窄屏档（底部抽屉） ---------------------------------------- */
+  .panel {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: var(--z-overlay);
+    max-height: min(72dvh, 620px);
+    overflow: hidden;
+    border-radius: var(--shape-corner-xl) var(--shape-corner-xl) 0 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .panel-head {
+    display: flex;
+    align-items: center;
+    gap: var(--m3e-space-3);
+    padding: var(--m3e-space-3) var(--m3e-space-4) var(--m3e-space-2);
+  }
+
+  .pane-name {
+    display: none;
+    /* 显示时用 flex：标题与计数之间要有空隙，贴在一起会读成"分类2"这样一个词 */
+    align-items: baseline;
+    gap: var(--m3e-space-2);
+    flex: 1;
+    margin: 0;
+  }
+
+  .pane-count {
+    color: var(--on-surface-variant);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .panel-actions {
+    display: flex;
+    gap: 2px;
+    margin-left: auto;
+  }
+
+  .panel-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: var(--m3e-space-2) var(--m3e-space-4) var(--m3e-space-5);
+  }
+
+  .pane {
+    display: none;
+  }
+
+  .pane-label {
+    margin: var(--m3e-space-4) 0 var(--m3e-space-2);
+    color: var(--on-surface-variant);
+    font-weight: 600;
+  }
+
+  .pane:first-child .pane-label {
+    margin-top: var(--m3e-space-1);
+  }
+
+  .switch-row {
+    display: flex;
+    align-items: center;
+    gap: var(--m3e-space-3);
+    margin-top: var(--m3e-space-4);
+    font-size: var(--m3e-body-md-size);
+    cursor: pointer;
+  }
+
+  .foot {
+    margin: var(--m3e-space-5) 0 var(--m3e-space-3);
+    color: var(--on-surface-variant);
+  }
+
+  .dock-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: calc(var(--z-overlay) - 1);
+    background: color-mix(in srgb, var(--scrim) 42%, transparent);
+  }
+
+  /* 折叠态：面板与遮罩都不在文档里占位，也不接受焦点 */
+  .dock[data-collapsed='true'] .panel,
+  .dock[data-collapsed='true'] .dock-scrim {
+    display: none;
+  }
+
+  /* 当前分区：一处 data-pane 同时驱动标题、内容、图标条高亮 */
+  .dock[data-pane='categories'] [data-pane-name='categories'],
+  .dock[data-pane='tags'] [data-pane-name='tags'],
+  .dock[data-pane='music'] [data-pane-name='music'],
+  .dock[data-pane='view'] [data-pane-name='view'] {
+    display: flex;
+  }
+
+  .dock[data-pane='categories'] [data-pane-key='categories'],
+  .dock[data-pane='tags'] [data-pane-key='tags'],
+  .dock[data-pane='music'] [data-pane-key='music'],
+  .dock[data-pane='view'] [data-pane-key='view'] {
+    display: block;
+  }
+
+  /* 窄屏才有遮罩（面板是抽屉，需要它承接"点外面关闭"） */
+  @media (min-width: 1280px) {
+    .dock-scrim {
+      display: none;
+    }
+  }
+
+  /* 展开动作：面板从所依附的那条边升起。
+     ⚠️ 默认状态就是可见的（动画只负责"演进来"），动画不跑时面板照常显示。 */
+  @keyframes m3-dock-up {
+    from {
+      transform: translateY(16px);
+      opacity: 0;
+    }
+  }
+
+  @keyframes m3-dock-side {
+    from {
+      transform: translateX(16px);
+      opacity: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    :root:not(.motion-reduced) .panel {
+      animation: m3-dock-up var(--m3e-duration-medium2) var(--m3e-easing-emphasized-decelerate) both;
+    }
+
+    :root:not(.motion-reduced) .dock-scrim {
+      animation: m3-fade var(--m3e-duration-short4) linear both;
+    }
+  }
+
+  @keyframes m3-fade {
+    from {
+      opacity: 0;
+    }
+  }
+
+  /* ---- 宽屏档（>= 1280px）：图标条回到栅格那一格，面板向左展开 --------- */
+  @media (min-width: 1280px) {
+    .dock {
+      position: sticky;
+      top: calc(var(--m3e-topbar-h) + var(--m3e-space-5));
+      /* 必须 start 对齐：栅格项默认 stretch 到整行高，sticky 就没有可移动的空间 */
+      align-self: start;
+      justify-self: end;
+    }
+
+    .rail {
+      position: static;
+      inset: auto;
+      transform: none;
+      flex-direction: column;
+      width: var(--dock-rail-w);
+      padding: var(--m3e-space-2) var(--m3e-space-1);
+      border-radius: var(--shape-corner-xl);
+    }
+
+    .rail-thread {
+      display: block;
+      width: 3px;
+      height: 28px;
+      margin-top: var(--m3e-space-2);
+      border-radius: var(--shape-corner-full);
+      /* 织线：三段等距短横，暗示"经线待织" */
+      background: repeating-linear-gradient(
+        180deg,
+        var(--loom-weft) 0 3px,
+        transparent 3px 7px
+      );
+    }
+
+    .panel {
+      position: absolute;
+      /* 先清掉窄屏档的四边定位，再单独给 top/right ——
+         反过来写（top/right 在前、inset 在后）会被 inset 全量覆盖，
+         面板会掉回视口左下角，而 CSS 不会报任何错。 */
+      inset: auto;
+      top: 0;
+      right: calc(100% + var(--m3e-space-3));
+      /* 向左展开，浮在正文之上 —— 不占栅格宽度，主列 840 因此不被挤 */
+      left: auto;
+      width: var(--dock-panel-w);
+      max-height: calc(100vh - var(--m3e-topbar-h) - var(--m3e-space-8));
+      border-radius: var(--shape-corner-xl);
+    }
+
+    .m3-handle {
+      display: none;
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      :root:not(.motion-reduced) .panel {
+        animation-name: m3-dock-side;
+      }
+    }
+  }
+</style>

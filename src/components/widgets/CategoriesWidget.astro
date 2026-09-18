@@ -1,28 +1,32 @@
 ---
 /**
- * 分类部件 —— 可折叠的分类列表。
+ * 分类 —— 悬浮栏「分类」分区的内容。
  *
- * 用原生 `<details>` 做折叠：无需一行 JS，键盘与屏幕阅读器原生可用
- * （`<details>` 自带展开/收起语义与焦点行为，比手写 aria 更不容易出错）。
+ * ★ 它曾经是侧栏里一张带 `<details>` 折叠头的卡片，现在搬进了常驻悬浮栏：
+ *   折叠由悬浮栏整体负责（图标条 ↔ 面板），分区内部再套一层 details 就会出现
+ *   "两层折叠、状态互相看不见"的怪东西。所以这里只渲染内容本身，
+ *   外壳（28px 浮层、发丝线、头部标题）由 SideDock 统一给。
  */
 import { getCategories } from '@/lib/api';
 import Icon from '../Icon.astro';
 
 const categories = await getCategories().catch(() => []);
 const total = categories.reduce((s, c) => s + (c.articleCount ?? 0), 0);
+/* 悬浮栏跨页常驻，所以它得知道"当前正停在哪一页"—— 否则它只是一堆链接，
+   读者无法从栏里读出自己所处的位置 */
+const current = Astro.url.pathname.replace(/\/$/, '') || '/';
 ---
 
 {
   categories.length > 0 && (
-    <details class="m3-card widget categories" open>
-      <summary class="head">
-        <span class="type-label-lg">分类</span>
-        <span class="count type-label-md">{categories.length}</span>
-      </summary>
+    <div class="categories">
       <ul class="list">
         {categories.map((c) => (
           <li>
-            <a href={`/categories/${c.slug}`}>
+            <a
+              href={`/categories/${c.slug}`}
+              aria-current={current === `/categories/${c.slug}` ? 'page' : undefined}
+            >
               <Icon name="folder" size={14} />
               <span class="text">{c.name}</span>
               <span class="n type-label-md">{c.articleCount ?? 0}</span>
@@ -31,33 +35,15 @@ const total = categories.reduce((s, c) => s + (c.articleCount ?? 0), 0);
         ))}
       </ul>
       <p class="foot type-body-sm">共 {total} 篇文章</p>
-    </details>
+    </div>
   )
 }
 
 <style>
-  .widget {
-    border: 1px solid var(--outline-variant);
-  }
-
-  /* summary 默认是 display: list-item（带三角标），这里换成自己的箭头 */
-  .head {
+  .categories {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    cursor: pointer;
-    list-style: none;
-    color: var(--on-surface-variant);
-  }
-
-  .head::-webkit-details-marker {
-    display: none;
-  }
-
-  .count {
-    padding: 0 var(--m3e-space-2);
-    border-radius: var(--shape-corner-full);
-    background: var(--surface-container-high);
+    flex-direction: column;
+    gap: var(--m3e-space-2);
   }
 
   .list {
@@ -65,7 +51,6 @@ const total = categories.reduce((s, c) => s + (c.articleCount ?? 0), 0);
     flex-direction: column;
     gap: 2px;
     list-style: none;
-    margin-top: var(--m3e-space-3);
   }
 
   .list a {
@@ -83,6 +68,13 @@ const total = categories.reduce((s, c) => s + (c.articleCount ?? 0), 0);
     text-decoration: none;
   }
 
+  /* 当前页正在这条分类上：给个静态指向，别让读者以为自己点错了 */
+  .list a[aria-current='page'] {
+    background: color-mix(in srgb, var(--primary) 14%, transparent);
+    color: var(--primary);
+    font-weight: 600;
+  }
+
   .text {
     flex: 1;
     min-width: 0;
@@ -97,7 +89,7 @@ const total = categories.reduce((s, c) => s + (c.articleCount ?? 0), 0);
   }
 
   .foot {
-    margin: var(--m3e-space-3) 0 0;
+    margin: 0;
     color: var(--on-surface-variant);
   }
 </style>

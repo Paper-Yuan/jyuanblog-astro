@@ -9,6 +9,7 @@ import '@/styles/variables.css';
 import '@/styles/main.css';
 import TopAppBar from '@/components/TopAppBar.astro';
 import Footer from '@/components/Footer.astro';
+import SideDock from '@/components/SideDock.astro';
 import SettingsPanel from '@/components/SettingsPanel.svelte';
 import { buildThemeCss } from '@/lib/theme-engine';
 import { SITE, THEME_DEFAULTS } from '@/config/site';
@@ -137,10 +138,23 @@ const ogImage = new URL('/og-default.svg', SITE.url).href;
           if (raw) s = JSON.parse(raw);
         } catch (e) {}
 
+        var mql = window.matchMedia('(prefers-color-scheme: dark)');
+        /*
+         * 明暗必须**无条件**算一次。
+         * 早先整段包在 `if (s)` 里，于是没存过设置的新访客永远拿不到 .dark 类 ——
+         * 而出厂默认档位是 'auto'（跟随系统），结果"默认跟随系统"形同虚设，
+         * 系统暗色的访客整站看到亮色，且 CSS 不会报任何错。
+         */
+        var mode = (s && s.mode) || 'auto';
+        var eff = mode === 'auto' ? (mql.matches ? 'dark' : 'light') : mode;
+        root.classList.toggle('dark', eff === 'dark');
+        if (mode === 'auto') {
+          mql.addEventListener('change', function (e) {
+            root.classList.toggle('dark', e.matches);
+          });
+        }
+
         if (s) {
-          var mql = window.matchMedia('(prefers-color-scheme: dark)');
-          var eff = s.mode === 'auto' || !s.mode ? (mql.matches ? 'dark' : 'light') : s.mode;
-          root.classList.toggle('dark', eff === 'dark');
           root.dataset.themeMode = s.mode || 'auto';
           root.dataset.wallpaper = s.wallpaper || 'banner';
           root.dataset.layout = s.layout || 'grid';
@@ -149,13 +163,6 @@ const ogImage = new URL('/og-default.svg', SITE.url).href;
             root.style.setProperty('--texture-opacity', String(s.textureOpacity));
           }
           if (s.reduceMotion) root.classList.add('motion-reduced');
-
-          // auto 模式跟随系统变化
-          if (s.mode === 'auto' || !s.mode) {
-            mql.addEventListener('change', function (e) {
-              root.classList.toggle('dark', e.matches);
-            });
-          }
         }
       })();
     </script>
@@ -165,12 +172,24 @@ const ogImage = new URL('/og-default.svg', SITE.url).href;
     )}
   </head>
 
-  <body class="has-wallpaper">
+  <body class:list={['has-wallpaper', showNav && 'has-dock']}>
     <a href="#main" class="skip-link">跳到正文</a>
     {showNav && <TopAppBar />}
-    <main id="main" class={width === 'reading' ? 'm3-layout narrow' : 'm3-layout'}>
-      <slot />
-    </main>
+
+    <!--
+      .shell 是「正文 + 常驻悬浮栏」的栅格容器。
+      它自己带 .m3-layout，所以版心宽度、左右内边距与顶栏/页脚共用同一套规则：
+      >= 1280px 时版心放宽到 1280，多出来的一格 64px 正好给图标条，
+      主列因此**一点没被挤**（840 是不变量，反推见 variables.css）。
+      窄屏时栅格只有一列，悬浮栏改成贴底的图标条。
+    -->
+    <div class="shell m3-layout">
+      <main id="main" class={width === 'reading' ? 'narrow' : undefined}>
+        <slot />
+      </main>
+      {showNav && <SideDock />}
+    </div>
+
     <Footer />
 
     <!--
@@ -197,7 +216,22 @@ const ogImage = new URL('/og-default.svg', SITE.url).href;
     left: 0;
   }
 
+  .shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    /* 栅格间隙只在有悬浮栏那一格时才需要，写在宽屏档里 */
+    column-gap: 0;
+  }
+
+  @media (min-width: 1280px) {
+    .shell {
+      grid-template-columns: minmax(0, 1fr) var(--dock-rail-w);
+      column-gap: var(--m3e-space-6);
+    }
+  }
+
   main {
+    min-width: 0;
     padding-top: var(--m3e-space-8);
     padding-bottom: var(--m3e-space-10);
     min-height: calc(100vh - var(--m3e-topbar-h) - 200px);
@@ -205,5 +239,20 @@ const ogImage = new URL('/og-default.svg', SITE.url).href;
 
   .narrow {
     max-width: var(--m3e-reading-max);
+    margin-inline: auto;
+  }
+
+  /*
+   * 窄屏档：悬浮栏收成贴底图标条，会给页面底部盖住一条。
+   * 预留出它的高度，否则页脚最后一行永远被压住（滚动到底才发现）。
+   */
+  :global(body.has-dock) {
+    padding-bottom: calc(var(--dock-bar-h) + var(--m3e-space-8));
+  }
+
+  @media (min-width: 1280px) {
+    :global(body.has-dock) {
+      padding-bottom: var(--m3e-space-6);
+    }
   }
 </style>

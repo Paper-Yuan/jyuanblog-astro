@@ -6,24 +6,30 @@
    * 切换配色风格时才动态 import**。只想切明暗的访客不会付出这个代价。
    *
    * 被 TopAppBar 的 #settings-trigger 按钮打开（挂载时自行绑定）。
+   *
+   * 三处界面（顶栏明暗按钮 / 悬浮栏视图区 / 这里）写的是同一份设置，
+   * 统一走 @/lib/theme 的 updateSettings()，它改完会广播 SETTINGS_EVENT，
+   * 面板据此重新读一次 —— 否则顶栏切了暗色、面板里的「明暗」还高亮着"亮"。
    */
+  import { fly, fade } from 'svelte/transition';
   import {
     readSettings,
     writeSettings,
-    applyAttributes,
+    updateSettings,
     resolveMode,
+    SETTINGS_EVENT,
     DEFAULT_SETTINGS,
     TEXTURE_PRESETS,
     type Settings,
     type ThemeMode,
     type WallpaperMode,
     type LayoutMode,
-    type TexturePreset,
   } from '@/lib/theme';
 
   let open = $state(false);
   let settings = $state<Settings>({ ...DEFAULT_SETTINGS });
   let busy = $state(false);
+  let panel = $state<HTMLElement | null>(null);
 
   const MODES: { value: ThemeMode; label: string }[] = [
     { value: 'light', label: '亮' },
@@ -59,6 +65,9 @@
   /** 常用色相快捷值 */
   const HUES = [315, 262, 240, 210, 160, 120, 60, 30, 0];
 
+  /** 当前生效的明暗，用于在分组标题上直接标出结果（auto 时"暗"才是真状态） */
+  const effectiveMode = $derived(resolveMode(settings.mode));
+
   /** 动态加载引擎并应用配色（只改色彩时才走这里） */
   async function applyColors() {
     busy = true;
@@ -69,11 +78,6 @@
     } finally {
       busy = false;
     }
-  }
-
-  /** 只改明暗/布局/纹理等，不碰配色 -> 无需引擎 */
-  function applyNonColor() {
-    applyAttributes(settings);
   }
 
   function persist() {
@@ -99,50 +103,24 @@
     await applyColors();
   }
 
-  function setMode(m: ThemeMode) {
-    settings.mode = m;
-    persist();
-    applyNonColor();
-    // auto 模式下切换系统主题要即时反映
-    if (m === 'auto') settings.mode = 'auto';
-    const eff = resolveMode(settings.mode);
-    document.documentElement.classList.toggle('dark', eff === 'dark');
+  /** 非色彩项：统一交给 updateSettings，它会落盘 + 应用 + 广播 */
+  function setNonColor(patch: Partial<Settings>) {
+    settings = { ...settings, ...patch };
+    updateSettings(patch);
   }
 
-  function setWallpaper(w: WallpaperMode) {
-    settings.wallpaper = w;
-    persist();
-    applyNonColor();
-  }
-
-  function setLayout(l: LayoutMode) {
-    settings.layout = l;
-    persist();
-    applyNonColor();
-  }
-
-  function setTexture(t: TexturePreset) {
-    settings.texture = t;
-    persist();
-    applyNonColor();
-  }
-
-  function onOpacityInput(e: Event) {
-    settings.textureOpacity = Number((e.target as HTMLInputElement).value);
-    persist();
-    applyNonColor();
-  }
-
-  function setReduceMotion(v: boolean) {
-    settings.reduceMotion = v;
-    persist();
-    applyNonColor();
-  }
-
+  /** 恢复出厂：色彩走引擎，其余走 updateSettings，两条都要跑 */
   async function reset() {
     settings = { ...DEFAULT_SETTINGS };
     persist();
-    applyNonColor();
+    updateSettings({
+      mode: DEFAULT_SETTINGS.mode,
+      wallpaper: DEFAULT_SETTINGS.wallpaper,
+      layout: DEFAULT_SETTINGS.layout,
+      texture: DEFAULT_SETTINGS.texture,
+      textureOpacity: DEFAULT_SETTINGS.textureOpacity,
+      reduceMotion: DEFAULT_SETTINGS.reduceMotion,
+    });
     await applyColors();
   }
 
@@ -151,16 +129,53 @@
     document.getElementById('settings-trigger')?.focus();
   }
 
-  function onKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape' && open) close();
+  /**
+   * 焦点陷阱。
+   *
+   * 面板是 aria-modal 的对话框：Tab 若在面板与背后的页面之间来回跳，
+   * 键盘用户会"走进正文里出不来"。这里把 Tab 圈在面板内，
+   * 并把 Esc 接上（读屏与键盘用户默认认为 Esc = 关闭浮层）。
+   */
+  const FOCUSABLE =
+    'a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])';
+
+  function onPanelKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      close();
+      return;
+    }
+    if (e.key !== 'Tab' || !panel) return;
+    const items = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+      (el) => el.offsetParent !== null
+    );
+    if (!items.length) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    const active = document.activeElement as HTMLElement | null;
+    if (e.shiftKey && (active === first || !panel.contains(active))) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && active === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+
+  /** 打开时把当前值重新读一遍：可能访客刚在顶栏或悬浮栏改过 */
+  function onTriggerClick() {
+    settings = readSettings();
+    open = true;
+    // 初焦点放到面板本身（而不是第一个控件）：读屏会念出标题，
+    // 而直接聚焦到滑杆会让人以为"我还没看标题就跳进控件了"
+    queueMicrotask(() => panel?.focus({ preventScroll: true }));
   }
 
   $effect(() => {
     settings = readSettings();
 
     const trigger = document.getElementById('settings-trigger');
-    const onOpen = () => (open = true);
-    trigger?.addEventListener('click', onOpen);
+    trigger?.addEventListener('click', onTriggerClick);
 
     const mql = window.matchMedia('(prefers-color-scheme: dark)');
     const onSystemChange = () => {
@@ -169,34 +184,62 @@
       }
     };
     mql.addEventListener('change', onSystemChange);
-    window.addEventListener('keydown', onKeydown);
+
+    const onExternal = () => {
+      if (open) settings = readSettings();
+    };
+    window.addEventListener(SETTINGS_EVENT, onExternal);
 
     return () => {
-      trigger?.removeEventListener('click', onOpen);
+      trigger?.removeEventListener('click', onTriggerClick);
       mql.removeEventListener('change', onSystemChange);
-      window.removeEventListener('keydown', onKeydown);
+      window.removeEventListener(SETTINGS_EVENT, onExternal);
     };
+  });
+
+  /* 打开时给触发按钮打 aria-expanded，关掉时撤掉 ——
+     读屏用户需要知道"这个按钮背后有个已展开的对话框" */
+  $effect(() => {
+    const trigger = document.getElementById('settings-trigger');
+    if (trigger) trigger.setAttribute('aria-expanded', String(open));
   });
 </script>
 
 {#if open}
+  <!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
   <div
     class="scrim"
     role="presentation"
+    transition:fade={{ duration: 150 }}
     onclick={(e) => {
       if (e.target === e.currentTarget) close();
     }}
   >
-    <div class="panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div
+      class="panel m3-sheet"
+      bind:this={panel}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="settings-title"
+      tabindex="-1"
+      transition:fly={{ x: 24, duration: 260 }}
+      onkeydown={onPanelKeydown}
+    >
       <header class="head">
+        <span class="m3-accent-bar" aria-hidden="true"></span>
         <h2 id="settings-title" class="type-title-lg">显示设置</h2>
-        <button class="m3-icon-btn" type="button" aria-label="关闭" onclick={close}>✕</button>
+        <button class="m3-icon-btn" type="button" aria-label="关闭设置" onclick={close}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+        </button>
       </header>
 
       <div class="body">
         <!-- 主题色 -->
         <section class="group">
-          <h3 class="label">主题色相</h3>
+          <h3 class="label">
+            主题色相
+            <span class="hint">当前 {settings.hue}°</span>
+          </h3>
           <div class="hue-row">
             <input
               type="range"
@@ -209,7 +252,7 @@
             />
             <span class="hue-val">{settings.hue}</span>
           </div>
-          <div class="swatches">
+          <div class="swatches" role="group" aria-label="常用色相">
             {#each HUES as h (h)}
               <button
                 type="button"
@@ -217,6 +260,7 @@
                 class:active={settings.hue === h}
                 style={`--sw:oklch(0.62 0.16 ${h})`}
                 aria-label={`色相 ${h}`}
+                aria-pressed={settings.hue === h}
                 onclick={() => setHue(h)}
               ></button>
             {/each}
@@ -225,12 +269,17 @@
 
         <!-- 配色风格 -->
         <section class="group">
-          <h3 class="label">配色风格</h3>
-          <div class="chips">
+          <h3 class="label">
+            配色风格
+            <span class="hint">{STYLES.find((s) => s.value === settings.style)?.label}</span>
+          </h3>
+          <div class="opts" role="radiogroup" aria-label="配色风格">
             {#each STYLES as s (s.value)}
               <button
                 type="button"
                 class="opt"
+                role="radio"
+                aria-checked={settings.style === s.value}
                 class:active={settings.style === s.value}
                 onclick={() => setStyle(s.value)}
               >
@@ -242,14 +291,19 @@
 
         <!-- 明暗 -->
         <section class="group">
-          <h3 class="label">明暗</h3>
-          <div class="chips">
+          <h3 class="label">
+            明暗
+            <span class="hint">生效为 {effectiveMode === 'dark' ? '暗色' : '亮色'}</span>
+          </h3>
+          <div class="opts" role="radiogroup" aria-label="明暗模式">
             {#each MODES as m (m.value)}
               <button
                 type="button"
                 class="opt"
+                role="radio"
+                aria-checked={settings.mode === m.value}
                 class:active={settings.mode === m.value}
-                onclick={() => setMode(m.value)}
+                onclick={() => setNonColor({ mode: m.value })}
               >
                 {m.label}
               </button>
@@ -260,13 +314,15 @@
         <!-- 背景 -->
         <section class="group">
           <h3 class="label">页面背景</h3>
-          <div class="chips">
+          <div class="opts" role="radiogroup" aria-label="页面背景">
             {#each WALLPAPERS as w (w.value)}
               <button
                 type="button"
                 class="opt"
+                role="radio"
+                aria-checked={settings.wallpaper === w.value}
                 class:active={settings.wallpaper === w.value}
-                onclick={() => setWallpaper(w.value)}
+                onclick={() => setNonColor({ wallpaper: w.value })}
               >
                 {w.label}
               </button>
@@ -277,13 +333,15 @@
         <!-- 布局 -->
         <section class="group">
           <h3 class="label">文章列表布局</h3>
-          <div class="chips">
+          <div class="opts" role="radiogroup" aria-label="文章列表布局">
             {#each LAYOUTS as l (l.value)}
               <button
                 type="button"
                 class="opt"
+                role="radio"
+                aria-checked={settings.layout === l.value}
                 class:active={settings.layout === l.value}
-                onclick={() => setLayout(l.value)}
+                onclick={() => setNonColor({ layout: l.value })}
               >
                 {l.label}
               </button>
@@ -293,14 +351,19 @@
 
         <!-- 纹理 -->
         <section class="group">
-          <h3 class="label">背景纹理</h3>
-          <div class="chips">
+          <h3 class="label">
+            背景纹理
+            <span class="hint">{TEXTURE_PRESETS.find((t) => t.value === settings.texture)?.label}</span>
+          </h3>
+          <div class="opts" role="radiogroup" aria-label="背景纹理">
             {#each TEXTURE_PRESETS as t (t.value)}
               <button
                 type="button"
                 class="opt"
+                role="radio"
+                aria-checked={settings.texture === t.value}
                 class:active={settings.texture === t.value}
-                onclick={() => setTexture(t.value)}
+                onclick={() => setNonColor({ texture: t.value })}
               >
                 {t.label}
               </button>
@@ -314,7 +377,7 @@
                 max="0.25"
                 step="0.01"
                 value={settings.textureOpacity}
-                oninput={onOpacityInput}
+                oninput={(e) => setNonColor({ textureOpacity: Number((e.target as HTMLInputElement).value) })}
                 aria-label="纹理浓度"
               />
               <span class="hue-val">{Math.round(settings.textureOpacity * 100)}%</span>
@@ -324,14 +387,18 @@
 
         <!-- 动效 -->
         <section class="group">
-          <label class="toggle">
+          <label class="switch-row">
             <input
               type="checkbox"
+              class="m3-switch"
               checked={settings.reduceMotion}
-              onchange={(e) => setReduceMotion((e.target as HTMLInputElement).checked)}
+              onchange={(e) => setNonColor({ reduceMotion: (e.target as HTMLInputElement).checked })}
             />
             <span>减少动效</span>
           </label>
+          <p class="note type-body-sm">
+            开启后入场、翻页与悬浮栏的动画全部退回到终态；系统的「减少动效」偏好始终优先。
+          </p>
         </section>
       </div>
 
@@ -347,11 +414,12 @@
   .scrim {
     position: fixed;
     inset: 0;
-    z-index: 100;
+    z-index: var(--z-overlay);
     display: flex;
     justify-content: flex-end;
     background: color-mix(in srgb, var(--scrim) 55%, transparent);
-    backdrop-filter: blur(2px);
+    /* 刻意不用 backdrop-filter：浮层压在正文上时，
+       背后内容被糊成一片反而更难读，且本站禁玻璃拟态 */
   }
 
   .panel {
@@ -359,23 +427,24 @@
     flex-direction: column;
     width: min(420px, 100vw);
     height: 100%;
-    background: var(--surface-container-low);
-    box-shadow: var(--m3e-elevation-3);
-    animation: slide-in var(--m3e-duration-medium) var(--m3e-easing-emphasized-decelerate);
-  }
-
-  @keyframes slide-in {
-    from {
-      transform: translateX(16px);
-      opacity: 0;
-    }
+    /* 浮层形状契约 28px：贴在视口右缘时只圆左侧两角 */
+    border-radius: var(--shape-corner-xl) 0 0 var(--shape-corner-xl);
+    box-shadow: var(--m3e-elevation-4);
   }
 
   .head {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: var(--m3e-space-3);
     padding: var(--m3e-space-5) var(--m3e-space-5) var(--m3e-space-3);
+  }
+
+  .head h2 {
+    margin: 0;
+  }
+
+  .head .m3-icon-btn {
+    margin-left: auto;
   }
 
   .body {
@@ -384,15 +453,32 @@
     padding: 0 var(--m3e-space-5) var(--m3e-space-5);
   }
 
+  /* 面板本身获得焦点时的初焦点环：不给它 outline 会完全看不见焦点在哪 */
+  .panel:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+  }
+
   .group {
     margin-bottom: var(--m3e-space-6);
   }
 
   .label {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--m3e-space-3);
     margin-bottom: var(--m3e-space-3);
     color: var(--on-surface-variant);
     font-size: var(--m3e-label-lg-size);
     font-weight: 600;
+  }
+
+  /* 分组标题右侧的"当前值"：不点开分组也能读出现在设成了什么 */
+  .hint {
+    color: var(--primary);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
   }
 
   .hue-row {
@@ -436,19 +522,29 @@
     transform: scale(1.1);
   }
 
+  /* 选中态：外环 + 内白圈，两层才在任何色相上都看得见（单靠描边在深色色板上会消失） */
   .swatch.active {
     outline: 2px solid var(--on-surface);
     outline-offset: 2px;
+    box-shadow: inset 0 0 0 3px var(--surface);
   }
 
-  .chips {
-    display: flex;
-    flex-wrap: wrap;
+  /* 选项组：网格铺开而不是 flex-wrap —— 后者会让"跟随系统"这种四字项
+     单独换行并把选中圆点挤成两行。92px 是最长标签 + 圆点 + 内边距的下界。 */
+  .opts {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
     gap: var(--m3e-space-2);
   }
 
   .opt {
-    padding: 6px var(--m3e-space-4);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--m3e-space-1);
+    min-height: 40px;
+    padding: 0 var(--m3e-space-3);
     border: 1px solid var(--outline-variant);
     border-radius: var(--shape-corner-full);
     background: transparent;
@@ -457,21 +553,33 @@
     cursor: pointer;
     transition:
       background var(--m3e-duration-short) var(--m3e-easing-standard),
-      color var(--m3e-duration-short) var(--m3e-easing-standard);
+      color var(--m3e-duration-short) var(--m3e-easing-standard),
+      border-color var(--m3e-duration-short) var(--m3e-easing-standard);
   }
 
   .opt:hover {
     background: color-mix(in srgb, var(--on-surface) 8%, transparent);
   }
 
+  /* 选中态必须"三重编码"：容器色 + 加粗 + 一枚勾。
+     只靠背景色差异的话，色相调到接近中性时选中与未选中几乎分不出 */
   .opt.active {
     background: var(--secondary-container);
-    border-color: transparent;
+    border-color: var(--on-secondary-container);
     color: var(--on-secondary-container);
     font-weight: 600;
   }
 
-  .toggle {
+  .opt.active::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    flex-shrink: 0;
+    border-radius: var(--shape-corner-full);
+    background: currentColor;
+  }
+
+  .switch-row {
     display: flex;
     align-items: center;
     gap: var(--m3e-space-3);
@@ -479,10 +587,9 @@
     font-size: var(--m3e-body-md-size);
   }
 
-  .toggle input {
-    width: 20px;
-    height: 20px;
-    accent-color: var(--primary);
+  .note {
+    margin: var(--m3e-space-2) 0 0;
+    color: var(--on-surface-variant);
   }
 
   .foot {
@@ -494,7 +601,31 @@
   }
 
   .foot button:disabled {
-    opacity: 0.5;
+    opacity: var(--state-disabled);
     cursor: not-allowed;
+  }
+
+  /* ---- 窄屏：面板从右侧全高改成底部抽屉 -------------------------------
+     420px 的侧栏在 390px 手机上等于整屏，且"从右边推进来"在小屏没有指向性。
+     收成底部抽屉后选项区还能横向铺开，不再挤成一团。 */
+  @media (max-width: 640px) {
+    .scrim {
+      align-items: flex-end;
+      justify-content: stretch;
+    }
+
+    .panel {
+      width: 100%;
+      height: min(86dvh, 720px);
+      border-radius: var(--shape-corner-xl) var(--shape-corner-xl) 0 0;
+    }
+
+    .opts {
+      grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+    }
+
+    .opt {
+      min-height: 48px; /* 触屏最小触控目标 */
+    }
   }
 </style>

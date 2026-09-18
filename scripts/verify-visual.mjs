@@ -299,12 +299,10 @@ try {
   //    —— 这是本轮唯一容易"看着有动画但其实全一样"的点
   // =========================================================================
   const stagger = await cdp.evaluate(`(() => {
-    const containers = document.querySelectorAll('.m3-stagger');
-    const cards = Array.from(document.querySelectorAll('.m3-stagger > .m3-reveal'));
-    return {
-      containers: containers.length,
-      cards: cards.length,
-      ranges: cards.map((c) => {
+    const containers = Array.from(document.querySelectorAll('.m3-stagger'));
+    return containers.map((box) => ({
+      label: box.className.replace(/\\s+/g, ' ').trim(),
+      cards: Array.from(box.querySelectorAll(':scope > .m3-reveal')).map((c) => {
         const s = getComputedStyle(c);
         return {
           range: s.animationRange || s.animationRangeStart || '',
@@ -312,15 +310,33 @@ try {
           timeline: s.animationTimeline || '',
         };
       }),
-    };
+    }));
   })()`);
 
-  check('存在 .m3-stagger 容器且命中直接子卡片', stagger.cards > 0, `卡片 ${stagger.cards} 张`);
-  const ranges = stagger.ranges.map((r) => r.range).filter(Boolean);
-  check('滚动入场动画已挂上', ranges.length > 0, `已挂 ${ranges.length}/${stagger.cards}`);
-  if (ranges.length > 1) {
-    const distinct = new Set(ranges);
-    check('每张卡片 animation-range 各不相同', distinct.size === ranges.length, `${distinct.size} 种 / ${ranges.length} 张\n       ${ranges.join('\n       ')}`);
+  const allRevealed = stagger.reduce((n, c) => n + c.cards.length, 0);
+  check(
+    '存在 .m3-stagger 容器且命中直接子卡片',
+    allRevealed > 0,
+    `${stagger.length} 个容器 / ${allRevealed} 张：${stagger.map((c) => c.label).join(' | ')}`
+  );
+  const ranges = stagger.flatMap((c) => c.cards.map((r) => r.range)).filter(Boolean);
+  check('滚动入场动画已挂上', ranges.length > 0, `已挂 ${ranges.length}/${allRevealed}`);
+  /*
+   * 错落必须**在每个容器内部**都成立。
+   * 早先这里把所有容器的 range 混在一个集合里比大小，于是"给侧栏部件也加上
+   * .m3-stagger"就会让断言假报警（两个容器各自 1/2/3 号，range 自然重复）。
+   * 真正的契约是"同一组里不重复"，不是"全站不重复"。
+   */
+  for (const box of stagger) {
+    const rs = box.cards.map((r) => r.range).filter(Boolean);
+    if (rs.length > 1) {
+      const distinct = new Set(rs);
+      check(
+        `容器「${box.label}」内每张卡片 animation-range 各不相同`,
+        distinct.size === rs.length,
+        `${distinct.size} 种 / ${rs.length} 张\n       ${rs.join('\n       ')}`
+      );
+    }
   }
 
   // =========================================================================
@@ -550,9 +566,12 @@ try {
      * 一旦真加了曲子，测试就会假报警。真正的不变量是：
      *   「音乐部件存在」必须**当且仅当**「API 里确实有可播放曲目」。
      * 这条在任何数据状态下都成立，且能抓住"渲染了空壳播放器"这类退化。
+     *
+     * 选择器同时看侧栏与悬浮栏：播放器已从首页侧栏搬进跨页常驻的悬浮栏，
+     * 只查 .widgets 会在搬家之后永远查不到（然后"通过"—— 那是最坏的通过）。
      */
     const audio = await cdp.evaluate(`(() => {
-      const el = document.querySelector('.widgets .music');
+      const el = document.querySelector('.widgets .music, .dock .music');
       if (!el) return { present: false };
       const src = el.querySelector('audio')?.getAttribute('src') ?? '';
       return { present: true, src, hasControls: !!el.querySelector('audio[controls], .controls') };
@@ -586,6 +605,347 @@ try {
   }
 
   // =========================================================================
+  // 5c-2. 首屏站格：不能是"居中大标题 + 两个按钮"的模板脸
+  // =========================================================================
+  const mast = await cdp.evaluate(`(() => {
+    const w = document.querySelector('.wordmark');
+    const loom = document.querySelector('.loom-plate');
+    const acts = document.querySelector('.mast-actions');
+    if (!w || !loom || !acts) return { present: false };
+    const wr = w.getBoundingClientRect();
+    const lr = loom.getBoundingClientRect();
+    const cs = getComputedStyle(w);
+    return {
+      present: true,
+      align: cs.textAlign,
+      font: cs.fontFamily,
+      loomSide: lr.left >= wr.right - 2 ? 'right' : lr.top >= wr.bottom ? 'below' : 'overlap',
+      actionsJustify: getComputedStyle(acts).justifyContent,
+      bars: document.querySelectorAll('.bars .bar').length,
+      barsWithPosts: document.querySelectorAll('.bars .bar.has').length,
+      kite: !!document.querySelector('.loom-kite'),
+      thread: !!document.querySelector('.thread-rule'),
+      /*
+       * 渐变字指纹：-webkit-text-fill-color 在 Chrome 里永远解析成一个颜色
+       * （不设它也会返回当前 color 值），拿它判断"有没有用渐变字"是错的。
+       * 真正做渐变字必须同时出现 background-clip: text + 一层渐变背景，
+       * 所以量这两样。
+       */
+      clipText: cs.webkitBackgroundClip || cs.backgroundClip,
+      bgImage: cs.backgroundImage,
+    };
+  })()`);
+  if (mast.present) {
+    check(
+      '首屏是左右分栏的站格（非居中模板脸）',
+      mast.align !== 'center' && (mast.loomSide === 'right' || mast.loomSide === 'below') && mast.actionsJustify !== 'center',
+      `标题对齐=${mast.align} 机杼板位置=${mast.loomSide} 按钮排布=${mast.actionsJustify}`
+    );
+    check(
+      '首屏机杼板是数据（12 格发布节奏），不是空装饰',
+      mast.bars === 12 && mast.kite && mast.thread,
+      `${mast.bars} 格（其中有发布 ${mast.barsWithPosts} 格）· 纸鸢=${mast.kite} · 纬线=${mast.thread}`
+    );
+    check(
+      '站名不用渐变字（AI 风指纹），且命中品牌字',
+      mast.clipText !== 'text' && !/gradient/i.test(mast.bgImage) && /lxgw wenkai/i.test(mast.font),
+      `background-clip=${mast.clipText} background-image=${mast.bgImage.slice(0, 24)} family="${mast.font.slice(0, 26)}…"`
+    );
+  } else {
+    check('首屏站格元素齐全', false, '未找到 .wordmark / .loom-plate / .mast-actions');
+  }
+
+  // =========================================================================
+  // 5c-3. 社交入口：RSS 已从名片区移除，但 <head> 的订阅声明必须留着
+  // =========================================================================
+  const rss = await cdp.evaluate(`(() => {
+    const scope = document.querySelectorAll('header, footer, .profile, .dock');
+    const hits = [];
+    for (const box of scope) {
+      for (const el of box.querySelectorAll('a, button')) {
+        const text = \`\${el.textContent || ''} \${el.getAttribute('aria-label') || ''} \${el.getAttribute('title') || ''}\`;
+        if (/rss|订阅|feed/i.test(text)) hits.push(text.trim());
+      }
+    }
+    const social = Array.from(document.querySelectorAll('.profile .social a')).map((a) => a.textContent.trim());
+    return {
+      hits,
+      social,
+      alternate: !!document.querySelector('link[rel="alternate"][type="application/rss+xml"]'),
+    };
+  })()`);
+  check(
+    '顶栏/页脚/名片/悬浮栏里没有 RSS 按钮',
+    rss.hits.length === 0,
+    rss.hits.length ? `仍残留：${rss.hits.join(' | ')}` : '干净'
+  );
+  check(
+    '名片区社交入口是 B 站 + GitHub',
+    rss.social.join(',') === 'B 站,GitHub',
+    `实际：${rss.social.join('、') || '(空)'}`
+  );
+  check('head 里的 RSS 订阅声明保留', rss.alternate, `link rel=alternate application/rss+xml: ${rss.alternate}`);
+
+  // =========================================================================
+  // 5c-4. 常驻悬浮栏（机杼匣）：存在、默认折叠、可展开、状态持久化、无毛玻璃
+  // =========================================================================
+  const dockIdle = await cdp.evaluate(`(() => {
+    const dock = document.querySelector('.dock');
+    if (!dock) return { present: false };
+    const rail = dock.querySelector('.rail');
+    const panel = dock.querySelector('.panel');
+    const main = document.querySelector('.main-col');
+    const rr = rail.getBoundingClientRect();
+    const mr = main ? main.getBoundingClientRect() : null;
+    return {
+      present: true,
+      vw: window.innerWidth,
+      collapsed: dock.dataset.collapsed,
+      sections: Array.from(dock.querySelectorAll('.rail-btn[data-section]')).map((b) => b.dataset.section),
+      railPos: getComputedStyle(rail).position,
+      railW: Math.round(rr.width),
+      railRight: Math.round(rr.right),
+      mainW: mr ? Math.round(mr.width) : null,
+      mainRight: mr ? Math.round(mr.right) : null,
+      panelShown: getComputedStyle(panel).display !== 'none',
+      panelRadius: getComputedStyle(panel).borderTopLeftRadius,
+      panelBackdrop: getComputedStyle(panel).backdropFilter,
+      panelBg: getComputedStyle(panel).backgroundColor,
+      dockVtn: getComputedStyle(dock).viewTransitionName,
+    };
+  })()`);
+  check('常驻悬浮栏存在', dockIdle.present, `分区：${(dockIdle.sections || []).join('、')}`);
+  if (dockIdle.present) {
+    check(
+      '悬浮栏默认折叠（只留图标条，面板不出现）',
+      dockIdle.collapsed === 'true' && dockIdle.panelShown === false,
+      `data-collapsed=${dockIdle.collapsed} 面板可见=${dockIdle.panelShown}`
+    );
+    check(
+      '悬浮栏面板无 backdrop-filter（禁玻璃拟态）',
+      dockIdle.panelBackdrop === 'none' || !dockIdle.panelBackdrop,
+      `backdrop-filter=${dockIdle.panelBackdrop} 底色=${dockIdle.panelBg}`
+    );
+    check('悬浮栏翻页时保持同一元素身份', dockIdle.dockVtn === 'dock', `view-transition-name=${dockIdle.dockVtn}`);
+    if (dockIdle.vw >= 1280) {
+      check(
+        '≥1280px：图标条竖排在正文右侧且不侵入正文',
+        dockIdle.railPos === 'static' && dockIdle.railW <= 72 && dockIdle.railRight > dockIdle.mainRight,
+        `rail ${dockIdle.railW}px 右缘 ${dockIdle.railRight} > 主列右缘 ${dockIdle.mainRight}`
+      );
+      check(
+        '≥1280px：加了悬浮栏之后主列仍 >= 840px（版心不变量）',
+        dockIdle.mainW >= 840,
+        `视口 ${dockIdle.vw}px 下主列 ${dockIdle.mainW}px`
+      );
+    }
+
+    /* ---- 展开：点图标 → 面板出现 → 状态写进 jyuanblog:dock ---- */
+    const dockOpen = await cdp.evaluate(`(async () => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      const btn = document.querySelector('.rail-btn[data-section]');
+      if (!btn) return null;
+      // 悬浮栏的脚本是外部模块，水合需要一点时间：点不开就重试
+      for (let i = 0; i < 40; i++) {
+        btn.click();
+        await wait(50);
+        if (document.querySelector('.dock').dataset.collapsed === 'false') break;
+      }
+      const dock = document.querySelector('.dock');
+      const panel = dock.querySelector('.panel');
+      const pr = panel.getBoundingClientRect();
+      return {
+        collapsed: dock.dataset.collapsed,
+        pane: dock.dataset.pane,
+        shown: getComputedStyle(panel).display !== 'none',
+        w: Math.round(pr.width),
+        right: Math.round(pr.right),
+        aria: btn.getAttribute('aria-expanded'),
+        visiblePane: panel.querySelector('.pane:not([style*="display: none"])') ? true : false,
+        stored: localStorage.getItem('jyuanblog:dock'),
+        allKeys: Object.keys(localStorage),
+      };
+    })()`);
+    if (dockOpen) {
+      check(
+        '点图标可展开面板，且图标上有展开态回显',
+        dockOpen.collapsed === 'false' && dockOpen.shown && dockOpen.aria === 'true',
+        `data-collapsed=${dockOpen.collapsed} 面板=${dockOpen.shown} aria-expanded=${dockOpen.aria}`
+      );
+      check(
+        '展开的面板是浮层（280px 档 + 28px 圆角），不占栅格宽度',
+        dockOpen.w >= 260 && dockOpen.w <= 300 && parseFloat(dockIdle.panelRadius) === 28,
+        `面板宽 ${dockOpen.w}px 圆角 ${dockIdle.panelRadius}`
+      );
+      check(
+        '折叠状态持久化，键名以 jyuanblog: 开头',
+        !!dockOpen.stored && JSON.parse(dockOpen.stored).pinned === true,
+        `jyuanblog:dock = ${dockOpen.stored}`
+      );
+      const stray = dockOpen.allKeys.filter((k) => !k.startsWith('jyuanblog:'));
+      check('本地存储键全部在 jyuanblog: 命名空间下', stray.length === 0, stray.join(', ') || '干净');
+
+      /* ---- 跨页保持：钉住之后翻页仍是展开态 ---- */
+      await goto('/blog/');
+      const dockKept = await cdp.evaluate(`(() => {
+        const dock = document.querySelector('.dock');
+        if (!dock) return null;
+        const panel = dock.querySelector('.panel');
+        return {
+          collapsed: dock.dataset.collapsed,
+          pane: dock.dataset.pane,
+          shown: getComputedStyle(panel).display !== 'none',
+        };
+      })()`);
+      check(
+        '钉住的面板跨页保持展开（悬浮栏真的跨页常驻）',
+        !!dockKept && dockKept.collapsed === 'false' && dockKept.shown,
+        dockKept ? `翻页后 data-collapsed=${dockKept.collapsed} 面板可见=${dockKept.shown}` : '文章页找不到悬浮栏'
+      );
+
+      /* ---- Esc 收起 ---- */
+      const dockEsc = await cdp.evaluate(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        await wait(80);
+        const dock = document.querySelector('.dock');
+        return {
+          collapsed: dock.dataset.collapsed,
+          stored: JSON.parse(localStorage.getItem('jyuanblog:dock') || '{}'),
+        };
+      })()`);
+      check(
+        'Esc 能收起悬浮栏并落盘',
+        dockEsc.collapsed === 'true' && dockEsc.stored.pinned === false,
+        `data-collapsed=${dockEsc.collapsed} 存储=${JSON.stringify(dockEsc.stored)}`
+      );
+    } else {
+      check('悬浮栏可展开', false, '页面上找不到图标条');
+    }
+
+    await goto('/');
+  }
+
+  // =========================================================================
+  // 5c-5. 顶栏明暗一键切换 + 设置面板（焦点陷阱 / Esc / 选中态 / 浮层形状）
+  // =========================================================================
+  const toggle = await cdp.evaluate(`(async () => {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const btn = document.getElementById('theme-toggle');
+    if (!btn) return null;
+    const before = document.documentElement.classList.contains('dark');
+    btn.click();
+    await wait(120);
+    const after = document.documentElement.classList.contains('dark');
+    const echo = btn.dataset.mode;
+    const stored = JSON.parse(localStorage.getItem('jyuanblog:settings') || '{}');
+    const label = btn.getAttribute('aria-label');
+    btn.click();
+    await wait(120);
+    return {
+      before,
+      after,
+      echo,
+      mode: stored.mode,
+      label,
+      back: document.documentElement.classList.contains('dark') === before,
+      hasIcon: !!btn.querySelector('.ico svg'),
+    };
+  })()`);
+  if (toggle) {
+    check(
+      '顶栏一键切换明暗：点一下真的翻转',
+      toggle.before !== toggle.after,
+      `点击前 dark=${toggle.before} → 后 ${toggle.after}`
+    );
+    check(
+      '切换结果落盘且按钮有状态回显',
+      (toggle.mode === 'dark' || toggle.mode === 'light') && toggle.echo === toggle.mode && toggle.hasIcon,
+      `settings.mode=${toggle.mode} 按钮 data-mode=${toggle.echo} 文案「${toggle.label}」`
+    );
+    check('再点一次回到原状态', toggle.back, `dark=${toggle.back}`);
+  } else {
+    check('顶栏有明暗切换按钮', false, '未找到 #theme-toggle');
+  }
+
+  const sheet = await cdp.evaluate(`(async () => {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])';
+    const trigger = document.getElementById('settings-trigger');
+    if (!trigger) return { found: false };
+    for (let i = 0; i < 40; i++) {
+      trigger.click();
+      await wait(60);
+      if (document.querySelector('[role="dialog"]')) break;
+    }
+    const panel = document.querySelector('[role="dialog"]');
+    if (!panel) return { found: false };
+    const s = getComputedStyle(panel);
+    const items = Array.from(panel.querySelectorAll(FOCUSABLE)).filter((el) => el.offsetParent !== null);
+    // 焦点陷阱：Tab 从最后一个可聚焦元素应当绕回第一个，而不是掉到背后的页面里
+    items[items.length - 1].focus();
+    const ev = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true });
+    panel.dispatchEvent(ev);
+    const wrappedTo = document.activeElement === items[0];
+    const outside = !panel.contains(document.activeElement);
+    const activeOpt = panel.querySelector('[role="radio"][aria-checked="true"]');
+    const inactive = panel.querySelector('[role="radio"][aria-checked="false"]');
+    /*
+     * 计算样式必须在关闭之前**取值快照**。getComputedStyle 返回的是活对象，
+     * 而面板关掉后已从文档里移除 —— 事后再读它的属性只会拿到空字符串，
+     * 于是断言拿着 '' 判失败，看起来像"圆角没生效"，其实是取值时机错了。
+     */
+    const snap = {
+      radius: s.borderTopLeftRadius,
+      backdrop: s.backdropFilter,
+      activeBg: activeOpt ? getComputedStyle(activeOpt).backgroundColor : null,
+      activeWeight: activeOpt ? getComputedStyle(activeOpt).fontWeight : null,
+      inactiveBg: inactive ? getComputedStyle(inactive).backgroundColor : null,
+      count: panel.querySelectorAll('[role="radio"]').length,
+      checked: panel.querySelectorAll('[role="radio"][aria-checked="true"]').length,
+    };
+    const esc = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true });
+    panel.dispatchEvent(esc);
+    await wait(400);
+    return {
+      found: true,
+      ...snap,
+      expandedAttr: trigger.getAttribute('aria-expanded'),
+      wrappedTo,
+      outside,
+      closed: !document.querySelector('[role="dialog"]'),
+      focusBack: document.activeElement === trigger,
+    };
+  })()`);
+  if (sheet.found) {
+    check(
+      '设置面板是浮层形状契约（28px），且不用毛玻璃',
+      parseFloat(sheet.radius) === 28 && (sheet.backdrop === 'none' || !sheet.backdrop),
+      `圆角 ${sheet.radius} backdrop-filter=${sheet.backdrop}`
+    );
+    check(
+      '面板里当前值有可见的选中态（radio + 容器色 + 加粗）',
+      sheet.count > 8 && sheet.checked >= 3 && sheet.activeBg !== sheet.inactiveBg && Number(sheet.activeWeight) >= 600,
+      `${sheet.count} 个选项 / ${sheet.checked} 个选中；选中底 ${sheet.activeBg} 未选底 ${sheet.inactiveBg} 字重 ${sheet.activeWeight}`
+    );
+    check(
+      '面板有焦点陷阱：Tab 从末元素绕回首元素，不逃到背后页面',
+      sheet.wrappedTo && !sheet.outside,
+      `绕回首元素=${sheet.wrappedTo} 焦点在面板外=${sheet.outside}`
+    );
+    check(
+      'Esc 关闭面板并把焦点还给触发按钮',
+      sheet.closed && sheet.focusBack,
+      `面板已关=${sheet.closed} 焦点回到按钮=${sheet.focusBack} aria-expanded=${sheet.expandedAttr}`
+    );
+  } else {
+    check('设置面板能打开', false, '点 #settings-trigger 之后找不到 [role=dialog]');
+  }
+
+  // 清掉这一节写下的本地存储，后面的窄屏检查要从"新访客"状态开始
+  await cdp.evaluate(`(() => { localStorage.clear(); return 1 })()`);
+
+  // =========================================================================
   // 5d. 时间线页：能渲染、链路协议安全
   // =========================================================================
   await goto('/timeline/');
@@ -602,24 +962,33 @@ try {
   check('时间线页有分类筛选片', tl.buttons > 1, `${tl.buttons} 个按钮`);
   check('时间线页无 javascript: 链接', tl.bad === 0, `检查 ${tl.links} 个链接，可疑 ${tl.bad} 个`);
 
-  // 筛选交互真的生效（点第二个筛选片后节点数应变化）
+  // 筛选交互真的生效（点第二个筛选片后节点数应变化），且归位动画只在筛过之后才挂
   const filtered = await cdp.evaluate(`(async () => {
     const btns = Array.from(document.querySelectorAll('.filters [data-filter]'));
+    const stream = document.getElementById('stream');
     const before = document.querySelectorAll('#stream .node:not([hidden])').length;
+    const beforeAnim = getComputedStyle(document.querySelector('#stream .node')).animationName;
     const target = btns.find((b) => b.dataset.filter !== 'all');
     if (!target) return null;
     target.click();
     await new Promise((r) => setTimeout(r, 60));
     const after = document.querySelectorAll('#stream .node:not([hidden])').length;
+    const afterAnim = getComputedStyle(document.querySelector('#stream .node:not([hidden])')).animationName;
+    const marked = stream.getAttribute('data-filtered');
     btns[0].click(); // 还原，避免影响后续断言
     await new Promise((r) => setTimeout(r, 60));
-    return { before, after, filter: target.dataset.filter };
+    return { before, after, filter: target.dataset.filter, beforeAnim, afterAnim, marked };
   })()`);
   if (filtered) {
     check(
       '分类筛选真的改变了可见节点数',
       filtered.after !== filtered.before,
       `筛选「${filtered.filter}」前 ${filtered.before} → 后 ${filtered.after}`
+    );
+    check(
+      '筛选归位动画只在筛过之后挂上（首屏不无端飞卡片）',
+      filtered.beforeAnim === 'none' && filtered.afterAnim !== 'none' && filtered.marked === filtered.filter,
+      `筛前 animation-name=${filtered.beforeAnim} → 筛后 ${filtered.afterAnim}（data-filtered=${filtered.marked}）`
     );
   }
 
@@ -682,6 +1051,76 @@ try {
   );
 
   // =========================================================================
+  // 7. 窄屏（390px）：悬浮栏收成贴底图标条 + 底部抽屉，且不许撑出横向滚动
+  //    放在最后跑：设备指标覆写会让后续量到的宽度全部变形，
+  //    而且模拟完必须显式 clear，否则前面那些 1280px 档的断言会集体误判。
+  // =========================================================================
+  await cdp.send('Emulation.setDeviceMetricsOverride', {
+    width: 390,
+    height: 844,
+    deviceScaleFactor: 1,
+    mobile: true,
+  });
+  await goto('/');
+  const mobile = await cdp.evaluate(`(async () => {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const dock = document.querySelector('.dock');
+    if (!dock) return { present: false };
+    const rail = dock.querySelector('.rail');
+    const rr = rail.getBoundingClientRect();
+    const s = getComputedStyle(rail);
+    const btn = dock.querySelector('.rail-btn[data-section]');
+    let opened = null;
+    for (let i = 0; i < 40; i++) {
+      btn.click();
+      await wait(50);
+      if (dock.dataset.collapsed === 'false') break;
+    }
+    const panel = dock.querySelector('.panel');
+    const pr = panel.getBoundingClientRect();
+    opened = {
+      shown: getComputedStyle(panel).display !== 'none',
+      full: Math.round(pr.width),
+      topRadius: getComputedStyle(panel).borderTopLeftRadius,
+      scrim: getComputedStyle(dock.querySelector('[data-dock-scrim]')).display,
+      pinned: dock.dataset.collapsed === 'false',
+    };
+    const main = document.querySelector('main');
+    return {
+      present: true,
+      vw: window.innerWidth,
+      railPos: s.position,
+      horizontal: rr.width > rr.height,
+      railW: Math.round(rr.width),
+      railH: Math.round(rr.height),
+      gapToBottom: Math.round(window.innerHeight - rr.bottom),
+      overflowX: Math.round(document.documentElement.scrollWidth - window.innerWidth),
+      bodyPadBottom: Math.round(parseFloat(getComputedStyle(document.body).paddingBottom)),
+      opened,
+      mainW: Math.round(main.getBoundingClientRect().width),
+    };
+  })()`);
+  if (mobile.present) {
+    check(
+      '窄屏：悬浮栏收成贴底的横向图标条',
+      mobile.railPos === 'fixed' && mobile.horizontal && mobile.gapToBottom >= 8 && mobile.gapToBottom <= 40,
+      `position=${mobile.railPos} ${mobile.railW}×${mobile.railH} 距底 ${mobile.gapToBottom}px`
+    );
+    check(
+      '窄屏：图标条不撑出横向滚动，且给页脚留了高度',
+      mobile.overflowX <= 0 && mobile.bodyPadBottom >= mobile.railH,
+      `横向溢出 ${mobile.overflowX}px / body padding-bottom ${mobile.bodyPadBottom}px（条高 ${mobile.railH}px）`
+    );
+    check(
+      '窄屏：面板从底部升起成抽屉（整宽 + 28px 上圆角 + 遮罩）',
+      mobile.opened.shown && mobile.opened.full >= 380 && parseFloat(mobile.opened.topRadius) === 28 && mobile.opened.scrim !== 'none',
+      `宽 ${mobile.opened.full}px 上圆角 ${mobile.opened.topRadius} 遮罩 ${mobile.opened.scrim}`
+    );
+  } else {
+    check('窄屏存在悬浮栏', false, '390px 下找不到 .dock');
+  }
+  await cdp.send('Emulation.clearDeviceMetricsOverride');
+
   check('无 CSP 违规 / 无页面异常', violations.length === 0, violations.length ? violations.slice(0, 5).join(' | ') : '干净');
 
   ws.close();

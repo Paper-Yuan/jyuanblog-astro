@@ -162,6 +162,18 @@ a:hover {
   padding: 0 var(--m3e-space-6);
 }
 
+/*
+ * >= 1280px 才把版心放宽 —— 这一档要给常驻悬浮栏腾出一格 64px 的图标条。
+ * 数字是反推的（见 variables.css 的 --m3e-content-max-wide 注释）：
+ * 840 主列 + 24 + 280 部件列 + 24 + 64 图标条 + 48 内边距 = 1280。
+ * 顶栏与页脚的内层同样用 .m3-layout，所以它们一起加宽，左右边缘仍然对齐。
+ */
+@media (min-width: 1280px) {
+  .m3-layout {
+    max-width: var(--m3e-content-max-wide);
+  }
+}
+
 /* ---- 卡片 ----------------------------------------------------------------
    高度靠**色调层次**表达，不靠阴影 —— 这是 Shirone 明确的规范：
    「深度主要来自色调表面层次，阴影是次要的」，且「不要用阴影作为主要深度线索」。
@@ -174,6 +186,7 @@ a:hover {
   padding: var(--m3e-space-5);
   transition:
     background var(--m3e-duration-short4) var(--m3e-easing-standard),
+    border-radius var(--m3e-duration-short2) var(--m3e-easing-emphasized),
     transform var(--m3e-duration-short4) var(--m3e-easing-emphasized-decelerate);
 }
 
@@ -182,9 +195,13 @@ a:hover {
   transform: translateY(-2px);
 }
 
-/* 按下时回弹，确认"已受理"。用更短的时长，长按反馈会显得迟钝 */
+/* 按下时回弹，确认"已受理"。用更短的时长，长按反馈会显得迟钝。
+   同时把圆角从卡片的 16px 收到核心控件的 12px —— M3E 用**形状变化**表达
+   "这块容器正在被按下去"，比只换个底色更有触感；幅度只有 4px，不会显闹。
+   ⚠️ 静止态必须回到 16px，形状契约量的是默认值。 */
 .m3-card--interactive:active {
   transform: translateY(0);
+  border-radius: var(--shape-corner-m);
   transition-duration: var(--m3e-duration-short2);
 }
 
@@ -251,6 +268,21 @@ a:hover {
   color: var(--primary);
   /* 1px 的 --outline 经抗锯齿后只有约 2.5:1，达不到非文字元素 3:1 的下限 */
   box-shadow: inset 0 0 0 1.5px var(--outline);
+}
+
+/* M3 的五变体补齐：此前只有 filled / tonal / outlined。
+   text 用于"同级但更轻"的入口（首页首屏的时间线），
+   elevated 用于需要浮起来一点、但又不该像 FAB 那样抢戏的场合。 */
+.m3-button--text {
+  background: transparent;
+  color: var(--primary);
+  padding: 0 var(--m3e-space-3);
+}
+
+.m3-button--elevated {
+  background: var(--surface-container-low);
+  color: var(--on-surface);
+  box-shadow: var(--m3e-elevation-1);
 }
 
 /* 图标按钮保持圆形：M3 里 IconButton 的标准形态是圆形，
@@ -322,23 +354,23 @@ a.m3-chip:hover {
 
 .m3-button:hover::after,
 .m3-icon-btn:hover::after {
-  opacity: 0.08;
+  opacity: var(--state-hover);
 }
 
 .m3-button:focus-visible::after,
 .m3-icon-btn:focus-visible::after {
-  opacity: 0.1;
+  opacity: var(--state-focus);
 }
 
 .m3-button:active::after,
 .m3-icon-btn:active::after {
-  opacity: 0.12;
+  opacity: var(--state-press);
 }
 
 /* 容器内含聚焦输入框时也高亮（用于 input 包裹在按钮式容器里的场景） */
 .m3-button:focus-within::after,
 .m3-icon-btn:focus-within::after {
-  opacity: 0.1;
+  opacity: var(--state-focus);
 }
 
 /* ---- 输入框 -------------------------------------------------------------- */
@@ -362,6 +394,271 @@ a.m3-chip:hover {
   height: 1px;
   border: none;
   background: var(--outline-variant);
+}
+
+/* ---- 分段控件（互斥选项） ------------------------------------------------
+   设置面板与悬浮栏的「视图」区用它，而不是自己拼一排 chip：
+   chip 是"可多选标签"的形状语言，用它承载互斥选项会让人以为能同时选两个。
+   圆角走核心控件档 12px（它是控件，不是浮层）。
+   ------------------------------------------------------------------------ */
+.m3-segmented {
+  display: inline-flex;
+  border: 1px solid var(--outline);
+  border-radius: var(--shape-corner-m);
+  overflow: hidden;
+}
+
+.m3-segmented > * {
+  display: grid;
+  place-items: center;
+  min-height: 40px;
+  padding: 0 var(--m3e-space-4);
+  border: none;
+  background: transparent;
+  color: var(--on-surface);
+  font: inherit;
+  font-size: var(--m3e-label-lg-size);
+  cursor: pointer;
+}
+
+.m3-segmented > * + * {
+  border-left: 1px solid var(--outline);
+}
+
+.m3-segmented > [aria-checked='true'],
+.m3-segmented > .is-on {
+  background: var(--secondary-container);
+  color: var(--on-secondary-container);
+  font-weight: 600;
+}
+
+/* ---- 开关（M3 switch 形态） ----------------------------------------------
+   原生 checkbox 的 20px 方块在触屏上偏小，且看不出"这是开关"。
+   用 appearance:none 的 checkbox 画成 M3 的 switch：语义仍是原生表单控件，
+   键盘与读屏零成本，不需要 role="switch" 那套手写 aria。
+   ------------------------------------------------------------------------ */
+.m3-switch {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  flex-shrink: 0;
+  width: 52px;
+  height: 32px;
+  border: 2.5px solid var(--outline);
+  border-radius: var(--shape-corner-full);
+  background: var(--surface-container-highest);
+  cursor: pointer;
+  transition:
+    background var(--m3e-duration-short4) var(--m3e-easing-standard),
+    border-color var(--m3e-duration-short4) var(--m3e-easing-standard);
+}
+
+.m3-switch::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--shape-corner-full);
+  background: var(--outline);
+  transform: translateY(-50%);
+  transition:
+    left var(--m3e-duration-medium1) var(--m3e-easing-emphasized),
+    width var(--m3e-duration-medium1) var(--m3e-easing-emphasized),
+    height var(--m3e-duration-medium1) var(--m3e-easing-emphasized),
+    background var(--m3e-duration-short4) var(--m3e-easing-standard);
+}
+
+.m3-switch:checked {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.m3-switch:checked::after {
+  left: 27px;
+  width: 22px;
+  height: 22px;
+  background: var(--on-primary);
+}
+
+/* ---- 浮层外壳（Sheet / 抽屉 / 展开面板） ---------------------------------
+   形状契约：浮层 28px。三处（设置面板、悬浮栏展开面板、窄屏底部抽屉）
+   共用这一条，避免每处自己写一个"看起来差不多"的圆角。
+   ⚠️ 实底 surface-container + 发丝线 + elevation，**不用 backdrop-filter**：
+      顶栏禁玻璃拟态的理由（正文滚过时透出可读性）在这里同样成立。 */
+.m3-sheet {
+  background: var(--surface-container-low);
+  border: 1px solid var(--outline-variant);
+  box-shadow: var(--m3e-elevation-3);
+}
+
+.m3-sheet--side {
+  border-radius: var(--shape-corner-xl) 0 0 var(--shape-corner-xl);
+}
+
+.m3-sheet--bottom {
+  border-radius: var(--shape-corner-xl) var(--shape-corner-xl) 0 0;
+}
+
+/* 拖拽把手：底部抽屉顶部的 4dp 短条，提示"这里能拉" */
+.m3-handle {
+  width: 32px;
+  height: 4px;
+  margin: var(--m3e-space-2) auto;
+  border-radius: var(--shape-corner-full);
+  background: var(--outline-variant);
+}
+
+/* ============================================================================
+   站点母题：机杼 / 纸鸢
+   ----------------------------------------------------------------------------
+   站名的意象是"机杼、机巧、百变机关"。这里的三条母题全部由令牌派生、
+   纯 CSS 绘制，**不加载任何装饰图**：
+     · .m3-accent-bar —— 部件/区块标题前的织轴短标（上游 Shirone 的招牌细节）
+     · .thread-rule  —— 一条"纬线"分隔线，取代普通的 1px 灰线
+     · .loom-plate   —— 首屏的经线/纬线色块，纸鸢沿纬线缓慢滑行（环境动效）
+   克制原则：只用一次、只出现在首屏与标题上，正文与卡片内部不放。
+   ============================================================================ */
+.m3-accent-bar {
+  display: inline-block;
+  width: 3px;
+  height: 14px;
+  flex-shrink: 0;
+  border-radius: var(--shape-corner-full);
+  background: var(--primary);
+}
+
+.thread-rule {
+  display: block;
+  width: 100%;
+  height: 6px;
+  border: none;
+  /* 纬线压过经线：一层实线 + 一层等距短竖线，看起来才是"织出来的" */
+  background-image:
+    linear-gradient(90deg, var(--loom-weft), var(--loom-weft)),
+    repeating-linear-gradient(90deg, var(--loom-warp) 0 1px, transparent 1px var(--loom-pitch));
+  background-repeat: no-repeat, repeat;
+  background-size: var(--thread-fill, 100%) 1px, 100% 100%;
+  background-position: left center, center;
+}
+
+/* ---- 经线板：首屏的"机杼" ------------------------------------------------ */
+.loom-plate {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--outline-variant);
+  /* 装饰性容器：用有机不对称圆角。核心控件与卡片不受影响（形状契约只管那三档）*/
+  border-radius: var(--shape-corner-l) var(--shape-corner-m) var(--shape-corner-l) var(--shape-corner-m);
+  background: var(--surface-container-low);
+}
+
+/* 经线：竖向等距细线。向下渐隐 —— 上半是"上了机还没织"的部分 */
+.loom-plate::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(90deg, var(--loom-warp) 0 1px, transparent 1px var(--loom-pitch));
+  mask-image: linear-gradient(180deg, #000 0%, #000 34%, transparent 92%);
+}
+
+/* 纬线：横向等距细线，只在下半部出现 —— 布是从下往上织出来的。
+   ⚠️ 两层线若都铺满，读起来就是张方格纸（像仪表盘），母题反而变噪音。 */
+.loom-plate::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(0deg, var(--loom-weft) 0 1px, transparent 1px var(--loom-weft-pitch));
+  opacity: 0.3;
+  mask-image: linear-gradient(180deg, transparent 38%, #000 78%, #000 100%);
+}
+
+/* 纸鸢：一枚菱形 + 一截尾线，沿纬线缓慢滑过（环境动效，非交互反馈） */
+.loom-kite {
+  position: absolute;
+  top: 22%;
+  left: 12%;
+  width: var(--kite-size);
+  height: var(--kite-size);
+  border-radius: var(--shape-corner-xs);
+  background: var(--tertiary-container);
+  box-shadow: inset 0 0 0 1px var(--on-tertiary-container);
+  transform: rotate(45deg);
+  z-index: 1;
+}
+
+.loom-kite::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 26px;
+  height: 1px;
+  transform-origin: left center;
+  background: var(--loom-weft);
+}
+
+/* ============================================================================
+   母题动效：三处，各有信息价值
+   ----------------------------------------------------------------------------
+   1. m3-weft-draw —— 首屏加载时把那条"纬线"从左拉到右，读者视线被带到标题下方
+      的导航区。入场元素默认状态可见（--thread-fill 默认 100%），动画只负责演。
+   2. m3-kite-glide —— 纸鸢漂移。属于 ambient（13s 级），**绝不用于交互反馈**。
+   3. m3-knot-in —— 时间线筛选后节点依次归位：位移量编码"顺序"，
+      不是纯装饰。只在用户点过筛选片之后才挂（见 timeline.astro 的 data-filtered）。
+   ============================================================================ */
+@keyframes m3-weft-draw {
+  from {
+    --thread-fill: 0%;
+  }
+
+  to {
+    --thread-fill: 100%;
+  }
+}
+
+@keyframes m3-kite-glide {
+  0% {
+    transform: rotate(45deg) translate(0, 0);
+  }
+
+  50% {
+    transform: rotate(45deg) translate(180%, -14%);
+  }
+
+  100% {
+    transform: rotate(45deg) translate(0, 0);
+  }
+}
+
+@keyframes m3-knot-in {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 自定义属性参与动画要在 @property 里注册，否则浏览器把它当字符串、
+   无法在 0% 与 100% 之间插值（表现就是"动画完全不跑"，且没有任何报错）。 */
+@property --thread-fill {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 100%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :root:not(.motion-reduced) .thread-rule--animated {
+    animation: m3-weft-draw var(--m3e-duration-medium4) var(--m3e-easing-emphasized-decelerate) both;
+  }
+
+  :root:not(.motion-reduced) .loom-kite {
+    animation: m3-kite-glide var(--m3e-duration-ambient-long) var(--m3e-easing-standard) infinite;
+  }
 }
 
 /* ============================================================================
@@ -717,6 +1014,13 @@ a.m3-chip:hover {
 /* 顶栏不参与内容过渡，只做极轻的交叉淡化（它自己是常驻的） */
 ::view-transition-old(topbar),
 ::view-transition-new(topbar) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+/* 常驻悬浮栏同理：翻页时它留在原地，读者不用重新找它 */
+::view-transition-old(dock),
+::view-transition-new(dock) {
   animation: none;
   mix-blend-mode: normal;
 }
