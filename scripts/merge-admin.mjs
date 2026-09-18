@@ -31,7 +31,18 @@ import { fileURLToPath } from 'node:url';
 
 const ASTRO_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = join(ASTRO_DIR, 'dist');
-const ADMIN_SRC = join(ASTRO_DIR, '..', 'jyuanblog-frontend', 'dist-admin');
+
+/**
+ * 后台产物的位置要兼容两种布局：本地两仓同级，而 GitHub Actions 里
+ * jyuanblog-frontend 被检出在 astro 仓目录**内部**。只写同级的话，CI 会报
+ * "后台产物缺失"，本地却永远复现不出来。
+ */
+const ADMIN_CANDIDATES = [
+  process.env.JYUANBLOG_ADMIN_DIST,
+  join(ASTRO_DIR, '..', 'jyuanblog-frontend', 'dist-admin'),
+  join(ASTRO_DIR, 'jyuanblog-frontend', 'dist-admin'),
+].filter(Boolean);
+const ADMIN_SRC = ADMIN_CANDIDATES.find((p) => existsSync(join(p, 'index.html')));
 const ADMIN_DEST = join(DIST, 'admin');
 
 /** 正式域名。评论区的跨源回退、CSP 白名单都以它为准。 */
@@ -41,10 +52,10 @@ if (!existsSync(DIST)) {
   console.error('dist 不存在，请先运行 astro build');
   process.exit(1);
 }
-if (!existsSync(join(ADMIN_SRC, 'index.html'))) {
-  console.error(`后台产物缺失：${ADMIN_SRC}/index.html`);
-  console.error('请先在 jyuanblog-frontend 执行：');
-  console.error('  MSYS_NO_PATHCONV=1 npx vite build --base=/admin/ --outDir dist-admin --emptyOutDir');
+if (!ADMIN_SRC) {
+  console.error('后台产物缺失，试过这些位置（也可用 JYUANBLOG_ADMIN_DIST 显式指定）：');
+  for (const p of ADMIN_CANDIDATES) console.error(`  ${join(p, 'index.html')}`);
+  console.error('先在 jyuanblog-frontend 里跑：npm run build:dist-admin');
   process.exit(1);
 }
 

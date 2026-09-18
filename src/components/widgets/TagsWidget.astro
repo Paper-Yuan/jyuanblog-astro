@@ -30,8 +30,8 @@ const items = tags.map((t) => ({
           <a
             href={t.href}
             class="m3-chip"
-            classList={{ 'is-current': current === t.href }}
-            style={t.color ? `--tag-color:${t.color}` : undefined}
+            class:list={{ 'is-current': current === t.href }}
+            style={t.color ? `--tag-color:${t.color}` : ''}
             aria-current={current === t.href ? 'page' : undefined}
           >
             # {t.name}
