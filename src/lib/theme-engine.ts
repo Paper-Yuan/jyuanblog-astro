@@ -6,15 +6,23 @@
  *
  * 这样 HCT 引擎（约 40KB）只在访客真正改动配色时才下载。
  * 若被静态引入，该模块会和引用者打进同一个 chunk，懒加载即失效。
+ *
+ * 例外：BaseLayout.astro 静态引入 buildThemeCss 是安全的 —— .astro 是服务端
+ * 组件，其 import 永远不进客户端 chunk。出厂配色与运行时配色因此共用同一份
+ * 生成逻辑（改一处即可，不会两边算出不同的令牌集）。
  */
-import { resolveScheme, schemeToCss } from './mc-utils';
+import { codeRoleCss, resolveScheme, schemeToCss } from './mc-utils';
 import { DEFAULT_SETTINGS, cacheThemeCss, applyThemeCss, type Settings } from './theme';
 
-/** 生成光暗两套 CSS 变量块 */
+/** 生成光暗两套 CSS 变量块 + 不翻转的代码块角色 */
 export function buildThemeCss(s: Settings): string {
-  const light = schemeToCss(resolveScheme(s.hue, false, s.style, s.spec), ':root');
-  const dark = schemeToCss(resolveScheme(s.hue, true, s.style, s.spec), ':root.dark');
-  return `${light}\n\n${dark}`;
+  const light = resolveScheme(s.hue, false, s.style, s.spec);
+  const dark = resolveScheme(s.hue, true, s.style, s.spec);
+  return [
+    schemeToCss(light, ':root'),
+    schemeToCss(dark, ':root.dark'),
+    codeRoleCss(light),
+  ].join('\n\n');
 }
 
 /** 算出并立即应用 + 缓存（设置面板的主入口） */

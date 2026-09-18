@@ -359,6 +359,74 @@ try {
         `视口 ${withToc.vw}px 下正文列 ${withToc.postW}px`
       );
     }
+
+    // =======================================================================
+    // 代码面板：暗色下不得翻成白板。
+    // inverse-* 是**相对角色**（实测亮 #100d11 / 暗 #fff7fd），早先 .prose pre
+    // 直接拿它当底色，于是暗色读者每段代码都看到一块刺眼的白 —— 而 CSS 不报错。
+    // 现在走 --code-bg/--code-fg（由 mc-utils.codeRoleCss 钉住亮色配对）。
+    // 这条断言量的是浏览器算出来的实际 rgb，不读源码。
+    // =======================================================================
+    const probeCode = () =>
+      cdp.evaluate(`(() => {
+        const pre = document.querySelector('.prose pre');
+        if (!pre) return null;
+        const s = getComputedStyle(pre);
+        return { bg: s.backgroundColor, fg: s.color };
+      })()`);
+
+    let code = await probeCode();
+    if (!code) {
+      // 当前这篇文章没有代码块 —— 回首页换一篇有代码的，别让断言静默跳过
+      await goto('/');
+      const hrefs = await cdp.evaluate(
+        `Array.from(document.querySelectorAll('a[href^="/blog/"]')).map((a) => a.getAttribute('href'))`
+      );
+      for (const h of hrefs.slice(0, 6)) {
+        await goto(h);
+        code = await probeCode();
+        if (code) break;
+      }
+    }
+
+    if (code) {
+      await cdp.evaluate(`document.documentElement.classList.add('dark')`);
+      const dark = await probeCode();
+      await cdp.evaluate(`document.documentElement.classList.remove('dark')`);
+
+      const lum = (c) => {
+        const m = /rgba?\(([^)]+)\)/.exec(c || '');
+        if (!m) return null;
+        const [r, g, b] = m[1].split(',').slice(0, 3).map((v) => parseFloat(v) / 255);
+        const f = (v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+        return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+      };
+      const ratio = (a, b) => {
+        const [hi, lo] = [Math.max(a, b), Math.min(a, b)];
+        return (hi + 0.05) / (lo + 0.05);
+      };
+
+      const bgL = lum(code.bg);
+      const bgLdark = dark ? lum(dark.bg) : null;
+      check(
+        '暗色下代码块仍是深底（不随 inverse 角色翻转）',
+        bgL !== null && bgL < 0.25 && bgLdark !== null && bgLdark < 0.25,
+        `亮度 亮=${bgL?.toFixed(3)} 暗=${bgLdark?.toFixed(3)}（>0.25 即翻成白板）`
+      );
+      check(
+        '代码块底色明暗两态同值',
+        !!dark && code.bg === dark.bg,
+        `亮 ${code.bg} / 暗 ${dark?.bg ?? '(未取到)'}`
+      );
+      const fgL = lum(code.fg);
+      check(
+        '代码块前景对底色对比度 >= 4.5:1',
+        fgL !== null && bgL !== null && ratio(fgL, bgL) >= 4.5,
+        `对比度 ${fgL !== null && bgL !== null ? ratio(fgL, bgL).toFixed(1) : '?'}:1（字 ${code.fg} / 底 ${code.bg}）`
+      );
+    } else {
+      check('代码面板契约', false, '站内没有任何一篇文章含代码块 —— 断言无法生效');
+    }
   } else {
     check('首页能找到文章链接', false, '未找到 /blog/ 链接');
   }

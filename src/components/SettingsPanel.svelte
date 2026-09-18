@@ -31,8 +31,10 @@
     { value: 'auto', label: '跟随系统' },
   ];
 
+  // 'banner' 这个值名不能改：localStorage 与 html[data-wallpaper] 选择器都依赖它。
+  // 它实际做的是「叠一层表面渐变」，所以文案写「渐变」而不是「横幅壁纸」。
   const WALLPAPERS: { value: WallpaperMode; label: string }[] = [
-    { value: 'banner', label: '横幅' },
+    { value: 'banner', label: '渐变' },
     { value: 'solid', label: '纯色' },
   ];
 

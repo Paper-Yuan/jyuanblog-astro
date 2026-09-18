@@ -30,21 +30,10 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ---- 壁纸层：访客可在显示设置里切成纯色 -------------------------------- */
-body {
-  background-image: none;
-  background-size: cover;
-  background-position: center;
-  background-attachment: fixed;
-  background-attachment: scroll;
-}
-
-:root[data-wallpaper='banner'] body.has-wallpaper {
-  background-image: var(--wallpaper-url);
-  position: relative;
-}
-
-/* 壁纸上叠一层表面色渐变，保证正文对比度不被照片破坏 */
+/* ---- 横幅模式：叠一层表面渐变，而不是壁纸图 --------------------------------
+   这里曾有一条 `background-image: var(--wallpaper-url)`，但 --wallpaper-url
+   全站从未赋值 —— 声明永远解析成 none，设置面板里的「横幅」其实只控制下面
+   这层渐变。删掉死声明，并把该选项改名为「渐变」，让开关与实际效果一致。 */
 :root[data-wallpaper='banner'] body.has-wallpaper::before {
   content: '';
   position: fixed;
@@ -472,8 +461,8 @@ a.m3-chip:hover {
 .prose pre {
   padding: var(--m3e-space-4);
   border-radius: var(--shape-corner-m);
-  background: var(--inverse-surface);
-  color: var(--inverse-on-surface);
+  background: var(--code-bg);
+  color: var(--code-fg);
   overflow-x: auto;
   font-size: var(--m3e-body-md-size);
   line-height: 1.6;

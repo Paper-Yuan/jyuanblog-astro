@@ -51,6 +51,13 @@
   --inverse-surface: var(--mc-inverse-surface, oklch(16% 0.02 315));
   --inverse-on-surface: var(--mc-inverse-on-surface, oklch(96% 0.012 315));
 
+  /* 代码面板专用：钉住**亮色**主题的 inverse 配对，不随 .dark 翻转。
+     inverse-* 是相对角色，暗色下会翻成近白（实测 #fff7fd），
+     直接把代码块底设成它会得到一块刺眼白板 —— 所以代码面板必须走独立角色。
+     真值由 mc-utils 的 codeRoleCss() 生成。 */
+  --code-bg: var(--mc-code-bg, oklch(16% 0.02 315));
+  --code-fg: var(--mc-code-fg, oklch(68% 0.012 315));
+
   --error: var(--mc-error, oklch(57% 0.21 27));
   --on-error: var(--mc-on-error, oklch(99% 0.01 27));
   --error-container: var(--mc-error-container, oklch(93% 0.06 27));
@@ -202,7 +209,6 @@
   --m3e-duration-ambient-long: 13s;
   --m3e-duration-ambient-extra-long: 18s;
 
-  --wallpaper-opacity: 1;
   --texture-opacity: 0.12;
 
   /* 文章封面占位底色。format.ts 的 placeholderTint() 只产出浅色系

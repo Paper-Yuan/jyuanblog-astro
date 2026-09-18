@@ -10,7 +10,7 @@ import '@/styles/main.css';
 import TopAppBar from '@/components/TopAppBar.astro';
 import Footer from '@/components/Footer.astro';
 import SettingsPanel from '@/components/SettingsPanel.svelte';
-import { resolveScheme, schemeToCss } from '@/lib/mc-utils';
+import { buildThemeCss } from '@/lib/theme-engine';
 import { SITE, THEME_DEFAULTS } from '@/config/site';
 import { DEFAULT_SETTINGS } from '@/lib/theme';
 
@@ -36,11 +36,9 @@ const {
 const pageTitle = title ? `${title} — ${SITE.title}` : `${SITE.title} — ${SITE.subtitle}`;
 const canonical = new URL(Astro.url.pathname, SITE.url).href;
 
-// 构建期出厂配色：默认访客无需任何 JS 即得到正确颜色
-const defaultCss = [
-  schemeToCss(resolveScheme(THEME_DEFAULTS.hue, false, THEME_DEFAULTS.style, THEME_DEFAULTS.spec), ':root'),
-  schemeToCss(resolveScheme(THEME_DEFAULTS.hue, true, THEME_DEFAULTS.style, THEME_DEFAULTS.spec), ':root.dark'),
-].join('\n\n');
+// 构建期出厂配色：默认访客无需任何 JS 即得到正确颜色。
+// 走与运行时同一个 buildThemeCss —— 两处若各算各的，访客改完色相就会丢令牌。
+const defaultCss = buildThemeCss(THEME_DEFAULTS);
 
 const ogImage = new URL('/og-default.svg', SITE.url).href;
 ---

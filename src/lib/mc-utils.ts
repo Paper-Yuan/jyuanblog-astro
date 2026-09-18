@@ -266,3 +266,18 @@ export function schemeToCss(scheme: McScheme, selector = ':root'): string {
     .join('\n');
   return `${selector} {\n${decls}\n}`;
 }
+
+/**
+ * 代码块专用角色：取**亮色** scheme 的 inverse 配对，写成不随 `.dark` 翻转的令牌。
+ *
+ * 为什么不能直接用 `--inverse-surface`：inverse-* 是**相对角色**，
+ * 暗色下它会翻成近白（实测 `--mc-inverse-surface` 亮 #100d11 / 暗 #fff7fd），
+ * 于是暗色页面里每段代码都成了一块刺眼的白板 —— 而 CSS 不会为此报错。
+ * 代码面板要的是「永远深底浅字」，所以只能显式钉住亮色那一套。
+ */
+export function codeRoleCss(light: McScheme): string {
+  const bg = light.inverseSurface;
+  const fg = light.inverseOnSurface;
+  if (!bg || !fg) return '';
+  return `:root {\n  --mc-code-bg: ${bg};\n  --mc-code-fg: ${fg};\n}`;
+}
