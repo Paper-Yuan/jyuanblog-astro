@@ -8,7 +8,7 @@
     "dev": "astro dev",
     "build": "astro build && node scripts/build-fonts.mjs && pagefind --site dist && node scripts/merge-admin.mjs",
     "build:only": "astro build",
-    "build:admin": "MSYS_NO_PATHCONV=1 npx --prefix ../jyuanblog-frontend vite build --base=/admin/ --outDir dist-admin --emptyOutDir",
+    "build:admin": "npm --prefix ../jyuanblog-frontend run build:dist-admin",
     "fonts:fetch": "node scripts/fetch-fonts.mjs",
     "fonts:build": "node scripts/build-fonts.mjs",
     "fonts:check": "node scripts/check-fonts.mjs",

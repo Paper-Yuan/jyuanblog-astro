@@ -59,6 +59,40 @@ rmSync(ADMIN_DEST, { recursive: true, force: true });
 cpSync(ADMIN_SRC, ADMIN_DEST, { recursive: true });
 
 // ============================================================
+// 让后台与访客前台同色同形
+// ============================================================
+//
+// 后台的 tokens.css 是真源 variables.css 的生成副本，里面只有语义层
+// （--primary: var(--mc-primary, oklch 回退)）。真正的 --mc-* 数值由 HCT 引擎
+// 在构建期算出、写进前台那节 <style id="jyuanblog-theme">。不把它一起注入，
+// 后台就只落到 oklch 回退值 —— 于是"同一套设计系统"在两个 zone 里其实是两套。
+//
+// 顺带注入 @font-face：子集字体在 /fonts/ 下（绝对路径，后台也拿得到），
+// 但字族不声明就没人用，标题会静默回落系统字。
+function injectFrontendTokens() {
+  const home = readFileSync(join(DIST, 'index.html'), 'utf8');
+
+  const theme = home.match(/<style id="jyuanblog-theme"[^>]*>[\s\S]*?<\/style>/);
+  if (!theme) {
+    console.error('merge-admin: 前台产物里找不到 <style id="jyuanblog-theme"> —— 后台会退回 oklch 回退色，拒绝静默发布');
+    process.exit(1);
+  }
+  const fontFace = [...home.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].find((m) =>
+    m[1].includes('@font-face')
+  );
+  if (!fontFace) console.warn('merge-admin: 前台没有 @font-face，后台标题将用系统字（fonts:build 跑过了吗？）');
+
+  const dest = join(ADMIN_DEST, 'index.html');
+  const original = readFileSync(dest, 'utf8');
+  if (original.includes('id="jyuanblog-theme"')) return; // 幂等：重复构建不叠加
+
+  const block = theme[0] + (fontFace ? `\n${fontFace[0]}` : '');
+  writeFileSync(dest, original.replace(/<head[^>]*>/, (m) => `${m}\n${block}`));
+  console.log(`已注入出厂配色${fontFace ? ' + 品牌字体' : ''} -> dist/admin/index.html`);
+}
+injectFrontendTokens();
+
+// ============================================================
 // CSP：内联脚本哈希
 // ============================================================
 //

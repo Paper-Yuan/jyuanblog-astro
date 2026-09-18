@@ -74,11 +74,16 @@ jobs:
         working-directory: jyuanblog-frontend
         run: npx vue-tsc --noEmit
 
-      # 后台是以 /admin/ 为 base 打进同一个 Pages 项目的，构建方式必须与部署一致，
-      # 否则资源路径会指到站点根（本地看不出来，线上 404）。
-      - name: Build admin (base=/admin/)
+      # 后台的 tokens.css 是前台 variables.css 的生成副本。漂移不会报错，
+      # 只会让两个 zone 悄悄变成两套配色 —— 所以这里挡住。
+      - name: Design tokens in sync
         working-directory: jyuanblog-frontend
-        run: npx vite build --base=/admin/ --outDir dist-admin --emptyOutDir
+        run: npm run tokens:check
+
+      # base=/admin/ 已写死在 vite.config.ts（不再靠命令行传，见那里的注释）。
+      - name: Build admin
+        working-directory: jyuanblog-frontend
+        run: npm run build:dist-admin
 
       - name: Astro check
         run: npx astro check
