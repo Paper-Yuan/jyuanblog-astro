@@ -1,11 +1,40 @@
 ---
+/**
+ * 归档 —— 站点的"按时间 + 按主题"总览。
+ *
+ * ★ 2026-09-19 起这里同时是**分类页与标签页**：
+ *   /categories、/categories/:slug、/tags、/tags/:slug 四个路由已删除，
+ *   筛选统一走查询参数 `?category=slug` 与 `?tag=slug`（可叠加），
+ *   悬浮栏与文章页里的分类/标签链接都指到这里。
+ *   旧地址在 public/_redirects 里 301 到对应的筛选态。
+ *
+ * ★ 为什么筛选是客户端做的：整站是构建期生成的静态页，
+ *   `/archives?category=x` 与 `/archives` 是同一个 HTML 文件，服务端没有
+ *   查询参数可看。所以列表**整份**在 HTML 里（读者与搜索引擎都拿到全量），
+ *   JS 只负责"藏掉不命中的行"。禁用 JS 时退化成"不过滤"，不是"看不到内容"。
+ */
 import BaseLayout from '@/layouts/BaseLayout.astro';
-import { getAllArticles } from '@/lib/api';
+import Icon from '@/components/Icon.astro';
+import { getAllArticles, getCategories, getTags } from '@/lib/api';
 import { formatDate, groupByMonth } from '@/lib/format';
+import { safeUrl } from '@/lib/url';
 
-const articles = await getAllArticles();
+const [articles, categories, tags] = await Promise.all([
+  getAllArticles(),
+  getCategories().catch(() => []),
+  getTags().catch(() => []),
+]);
+
 const groups = groupByMonth(articles);
 const totalViews = articles.reduce((sum, a) => sum + a.viewCount, 0);
+
+/* 查询参数直接进 href 就是 XSS 面：一律过协议白名单再拼 */
+const catHref = (slug: string) => safeUrl(`/archives?category=${encodeURIComponent(slug)}`) ?? '/archives';
+const tagHref = (slug: string) => safeUrl(`/archives?tag=${encodeURIComponent(slug)}`) ?? '/archives';
+
+const usedCats = categories.filter((c) => articles.some((a) => a.category?.id === c.id));
+const usedTags = tags.filter((t) => articles.some((a) => a.tags.some((x) => x.id === t.id)));
+const filtering = usedCats.length > 0 || usedTags.length > 0;
 ---
 
 <BaseLayout title="归档">
@@ -17,20 +46,71 @@ const totalViews = articles.reduce((sum, a) => sum + a.viewCount, 0);
   </header>
 
   {
+    filtering && (
+      <section class="filters" aria-label="按分类与标签筛选">
+        {usedCats.length > 0 && (
+          <div class="filter-group">
+            <span class="filter-name">
+              <Icon name="folder" size={14} /> 分类
+            </span>
+            <div class="chips">
+              {usedCats.map((c) => (
+                <a href={catHref(c.slug)} class="m3-chip" data-filter-cat={c.slug}>
+                  {c.name}
+                  <span class="n">{articles.filter((a) => a.category?.slug === c.slug).length}</span>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+        {usedTags.length > 0 && (
+          <div class="filter-group">
+            <span class="filter-name">
+              <Icon name="tag" size={14} /> 标签
+            </span>
+            <div class="chips">
+              {usedTags.map((t) => (
+                <a href={tagHref(t.slug)} class="m3-chip" data-filter-tag={t.slug}>
+                  # {t.name}
+                  <span class="n">
+                    {articles.filter((a) => a.tags.some((x) => x.slug === t.slug)).length}
+                  </span>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <p class="filter-bar">
+          <a href="/archives" class="clear type-label-lg" data-clear hidden>清除筛选 ×</a>
+        </p>
+        <p class="filter-status type-body-sm" role="status" aria-live="polite">
+          <noscript>筛选需要 JavaScript；未启用时这里列出全部文章。</noscript>
+        </p>
+      </section>
+    )
+  }
+
+  {
     groups.length === 0 ? (
       <p class="empty">还没有文章。</p>
     ) : (
-      <div class="timeline">
+      <div class="timeline" id="archive-stream">
         {groups.map((g) => (
-          <section class="group">
+          <section class="group" data-group>
             <h2 class="marker type-title-md">
               <span class="dot" aria-hidden="true" />
               {g.year} 年 {Number(g.month)} 月
-              <span class="count type-label-md">{g.items.length} 篇</span>
+              <span class="count type-label-md">
+                <span data-month-count>{g.items.length}</span>
+                <span class="month-total" data-month-total hidden>
+                  /{g.items.length}
+                </span>
+              </span>
             </h2>
             <ul class="items">
               {g.items.map((a) => (
-                <li>
+                <li data-item data-cat={a.category?.slug ?? ''} data-tags={a.tags.map((t) => t.slug).join(' ')}>
                   <a href={`/blog/${a.slug}`} class="item">
                     <span class="date type-body-sm">{formatDate(a.createdAt).slice(5)}</span>
                     <span class="title">{a.title}</span>
@@ -44,7 +124,89 @@ const totalViews = articles.reduce((sum, a) => sum + a.viewCount, 0);
       </div>
     )
   }
+
+  {
+    filtering && (
+      <p class="empty no-hit" id="no-hit" hidden>
+        这个组合下没有文章。<a href="/archives">看全部</a>
+      </p>
+    )
+  }
 </BaseLayout>
+
+<script>
+  /**
+   * 读取 ?category / ?tag，把不命中的行藏掉。
+   * 只改 hidden 与计数，不重排 DOM —— 时间线的月份标题留在原地，
+   * 读者才能感到"是同一份归档被筛过"，而不是换了一个页面。
+   */
+  const params = new URLSearchParams(location.search);
+  const cat = params.get('category');
+  const tag = params.get('tag');
+
+  const items = Array.from(document.querySelectorAll<HTMLElement>('[data-item]'));
+  if (!items.length) {
+    // 没有文章就没有筛选可做的（空状态由服务端渲染）
+  } else {
+    const active = Boolean(cat) || Boolean(tag);
+    const hit = (el: HTMLElement) => {
+      const elCat = el.dataset.cat ?? '';
+      const elTags = (el.dataset.tags ?? '').split(' ').filter(Boolean);
+      return (!cat || elCat === cat) && (!tag || elTags.includes(tag));
+    };
+
+    let shown = 0;
+    for (const el of items) {
+      const ok = !active || hit(el);
+      el.hidden = !ok;
+      if (ok) shown++;
+    }
+
+    /* 命中的月份才留标题；标题上的计数改成"命中/总数" */
+    for (const group of document.querySelectorAll<HTMLElement>('[data-group]')) {
+      const visible = group.querySelectorAll('[data-item]:not([hidden])').length;
+      group.hidden = active && visible === 0;
+      const total = group.querySelector<HTMLElement>('[data-month-total]');
+      const count = group.querySelector<HTMLElement>('[data-month-count]');
+      if (total && count) {
+        total.hidden = !active;
+        total.textContent = `/${count.textContent ?? ''}`;
+        count.textContent = String(visible);
+      }
+    }
+
+    document.getElementById('no-hit')?.toggleAttribute('hidden', shown > 0);
+    const clear = document.querySelector<HTMLElement>('[data-clear]');
+    if (clear) clear.hidden = !active;
+
+    const label = (kind: 'cat' | 'tag', slug: string) => {
+      /* 同一个 slug 有两处入口：页内这排片块，和悬浮栏里的那条链接。
+         两边一起点亮 —— 常驻栏的作用就是"告诉读者现在站在哪"，
+         只点亮页内那排的话，栏里仍是一堆看起来没被选中的链接。 */
+      const nodes = document.querySelectorAll<HTMLElement>(
+        `[data-filter-${kind}="${CSS.escape(slug)}"]`
+      );
+      let name = slug;
+      nodes.forEach((el, i) => {
+        el.setAttribute('aria-current', 'true');
+        if (i === 0) name = (el.textContent ?? '').trim().replace(/\s*\d+$/, '');
+      });
+      return name;
+    };
+
+    const status = document.querySelector<HTMLElement>('.filter-status');
+    if (status) {
+      const bits: string[] = [];
+      if (cat) bits.push(`分类「${label('cat', cat)}」`);
+      if (tag) bits.push(`标签「${label('tag', tag)}」`);
+      const noscript = status.querySelector('noscript');
+      if (noscript) noscript.remove();
+      status.textContent = active
+        ? `${bits.join(' · ')} · 命中 ${shown} / ${items.length} 篇`
+        : `未筛选 · 共 ${items.length} 篇`;
+    }
+  }
+</script>
 
 <style>
   .head {
@@ -56,6 +218,76 @@ const totalViews = articles.reduce((sum, a) => sum + a.viewCount, 0);
     color: var(--on-surface-variant);
   }
 
+  /* ---- 筛选条 ---- */
+  .filters {
+    display: flex;
+    flex-direction: column;
+    gap: var(--m3e-space-4);
+    margin-bottom: var(--m3e-space-8);
+    padding: var(--m3e-space-4) var(--m3e-space-5);
+    border: 1px solid var(--outline-variant);
+    border-radius: var(--shape-corner-l);
+    background: var(--surface-container-low);
+  }
+
+  .filter-group {
+    display: flex;
+    align-items: baseline;
+    gap: var(--m3e-space-3);
+  }
+
+  .filter-name {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--m3e-space-1);
+    flex-shrink: 0;
+    /* 12px 的固定标签列 + 右对齐：分类/标签两行的片块才会在同一条竖线上起排，
+       否则片块跟着各自的标签走，两行看起来像错落的两堆。 */
+    width: 3.5em;
+    justify-content: flex-end;
+    color: var(--on-surface-variant);
+    font-size: var(--m3e-label-md-size);
+    font-weight: 600;
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--m3e-space-2);
+    min-width: 0;
+  }
+
+  .chips a {
+    text-decoration: none;
+  }
+
+  .chips .n {
+    color: var(--on-surface-variant);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* 当前筛选态：容器色 + 加粗，和悬浮栏/设置面板里的选中语言一致。
+     aria-current 由脚本回填（服务端读不到查询参数） */
+  .chips a[aria-current='true'] {
+    background: var(--secondary-container);
+    color: var(--on-secondary-container);
+    font-weight: 600;
+  }
+
+  .filter-bar {
+    margin: 0;
+  }
+
+  .clear {
+    color: var(--primary);
+  }
+
+  .filter-status {
+    margin: 0;
+    color: var(--on-surface-variant);
+  }
+
+  /* ---- 时间线 ---- */
   .timeline {
     position: relative;
     padding-left: var(--m3e-space-6);
@@ -96,6 +328,11 @@ const totalViews = articles.reduce((sum, a) => sum + a.viewCount, 0);
 
   .count {
     color: var(--on-surface-variant);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .month-total {
+    opacity: 0.75;
   }
 
   .items {
@@ -138,15 +375,38 @@ const totalViews = articles.reduce((sum, a) => sum + a.viewCount, 0);
     flex-shrink: 0;
   }
 
-  @media (max-width: 560px) {
-    .cat {
-      display: none;
-    }
-  }
-
   .empty {
     padding: var(--m3e-space-8) 0;
     text-align: center;
     color: var(--on-surface-variant);
+  }
+
+  .no-hit {
+    margin-top: calc(-1 * var(--m3e-space-5));
+  }
+
+  /* 窄屏：标签列换到行首，片块占满整行横向滚动会藏住半枚 —— 让它换行。
+     标题与分类片之间优先保标题，分类在 560 以下退场（时间线上已经能看出主题）。 */
+  @media (max-width: 720px) {
+    .filter-group {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--m3e-space-2);
+    }
+
+    .filter-name {
+      width: auto;
+      justify-content: flex-start;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .cat {
+      display: none;
+    }
+
+    .filters {
+      padding: var(--m3e-space-4);
+    }
   }
 </style>

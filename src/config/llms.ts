@@ -39,9 +39,11 @@ export const LLMS = {
   /** 向 AI 重点介绍的核心栏目。 */
   corePages: [
     { title: '文章列表', url: '/blog', note: '全部文章按时间倒序' },
-    { title: '归档', url: '/archives', note: '按年月归拢的全部文章' },
-    { title: '分类', url: '/categories', note: '按主题划分' },
-    { title: '标签', url: '/tags', note: '按关键词划分' },
+    {
+      title: '归档',
+      url: '/archives',
+      note: '按年月归拢的全部文章；分类与标签筛选走 ?category=slug 与 ?tag=slug',
+    },
   ],
 
   /** 自定义扩展章节（外部项目/API 文档等）。 */

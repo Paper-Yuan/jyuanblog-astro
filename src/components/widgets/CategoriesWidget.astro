@@ -5,16 +5,21 @@
  * ★ 它曾经是侧栏里一张带 `<details>` 折叠头的卡片，现在搬进了常驻悬浮栏：
  *   折叠由悬浮栏整体负责（图标条 ↔ 面板），分区内部再套一层 details 就会出现
  *   "两层折叠、状态互相看不见"的怪东西。所以这里只渲染内容本身，
- *   外壳（28px 浮层、发丝线、头部标题）由 SideDock 统一给。
+ *   外壳（浮层圆角、发丝线、头部标题）由 SideDock 统一给。
+ *
+ * ★ 2026-09-19：/categories 与 /categories/:slug 已删除，分类页并入归档页的
+ *   筛选态 `?category=slug`。栏里点一条分类 = 把归档筛到这一类，
+ *   读者仍然停在同一份列表上。
  */
 import { getCategories } from '@/lib/api';
 import Icon from '../Icon.astro';
 
 const categories = await getCategories().catch(() => []);
 const total = categories.reduce((s, c) => s + (c.articleCount ?? 0), 0);
-/* 悬浮栏跨页常驻，所以它得知道"当前正停在哪一页"—— 否则它只是一堆链接，
-   读者无法从栏里读出自己所处的位置 */
-const current = Astro.url.pathname.replace(/\/$/, '') || '/';
+/* 整站是构建期生成的，`/archives?category=x` 与 `/archives` 是同一个文件 ——
+   所以"当前筛的是哪一条"**不可能**在服务端知道，只能由归档页的脚本回填
+   （它按 data-filter-cat 找节点，页面里的片块与这里的链接一起点亮）。 */
+const hrefOf = (slug: string) => `/archives?category=${encodeURIComponent(slug)}`;
 ---
 
 {
@@ -23,10 +28,7 @@ const current = Astro.url.pathname.replace(/\/$/, '') || '/';
       <ul class="list">
         {categories.map((c) => (
           <li>
-            <a
-              href={`/categories/${c.slug}`}
-              aria-current={current === `/categories/${c.slug}` ? 'page' : undefined}
-            >
+            <a href={hrefOf(c.slug)} data-filter-cat={c.slug}>
               <Icon name="folder" size={14} />
               <span class="text">{c.name}</span>
               <span class="n type-label-md">{c.articleCount ?? 0}</span>
@@ -34,7 +36,7 @@ const current = Astro.url.pathname.replace(/\/$/, '') || '/';
           </li>
         ))}
       </ul>
-      <p class="foot type-body-sm">共 {total} 篇文章</p>
+      <p class="foot type-body-sm">共 {total} 篇文章 · 点开即在归档里筛选</p>
     </div>
   )
 }
@@ -68,8 +70,9 @@ const current = Astro.url.pathname.replace(/\/$/, '') || '/';
     text-decoration: none;
   }
 
-  /* 当前页正在这条分类上：给个静态指向，别让读者以为自己点错了 */
-  .list a[aria-current='page'] {
+  /* 归档页正筛在这条分类上：由归档页的脚本回填 aria-current，
+     静态渲染时它不存在（服务端读不到查询参数） */
+  .list a[aria-current='true'] {
     background: color-mix(in srgb, var(--primary) 14%, transparent);
     color: var(--primary);
     font-weight: 600;

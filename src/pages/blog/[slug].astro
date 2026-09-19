@@ -59,7 +59,7 @@ const jsonLd = {
         {article.category && (
           <>
             <span aria-hidden="true">/</span>
-            <a href={`/categories/${article.category.slug}`}>{article.category.name}</a>
+            <a href={`/archives?category=${article.category.slug}`}>{article.category.name}</a>
           </>
         )}
       </nav>
@@ -79,7 +79,7 @@ const jsonLd = {
             /* 标签色来自后台数据，过白名单再进 style（见 @/lib/format） */
             const c = safeColor(t.color);
             return (
-              <a href={`/tags/${t.slug}`} class="m3-chip" style={c ? `color:${c}` : undefined}>
+              <a href={`/archives?tag=${t.slug}`} class="m3-chip" style={c ? `color:${c}` : undefined}>
                 # {t.name}
               </a>
             );

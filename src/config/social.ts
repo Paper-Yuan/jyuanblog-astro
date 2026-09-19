@@ -15,7 +15,10 @@ export interface SocialLink {
 /** 改这里即可。留空数组则侧栏名片不渲染社交区。 */
 const RAW: SocialLink[] = [
   { label: 'B 站', url: 'https://space.bilibili.com/99201674' },
-  { label: 'GitHub', url: 'https://github.com/Zzz-IT/GoclashZ/issues' },
+  /* 用户 2026-09-19 确认账号是 Paper-Yuan。早先这里写的是
+     Zzz-IT/GoclashZ（别人账号下的一个仓库的 issues），是照原话接来的。
+     指向主页而不是某个仓库：入口不会随仓库改名/转私而失效。 */
+  { label: 'GitHub', url: 'https://github.com/Paper-Yuan' },
   // RSS 不在此列：订阅源仍由 <head> 里的 <link rel="alternate"> 与页脚提供，
   // 名片区只放"人"的入口，不放格式入口。
 ];

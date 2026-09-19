@@ -485,12 +485,73 @@ a.m3-chip:hover {
 /* ---- 浮层外壳（Sheet / 抽屉 / 展开面板） ---------------------------------
    形状契约：浮层 28px。三处（设置面板、悬浮栏展开面板、窄屏底部抽屉）
    共用这一条，避免每处自己写一个"看起来差不多"的圆角。
-   ⚠️ 实底 surface-container + 发丝线 + elevation，**不用 backdrop-filter**：
-      顶栏禁玻璃拟态的理由（正文滚过时透出可读性）在这里同样成立。 */
+   ⚠️ 默认仍是实底 surface-container + 发丝线 + elevation。
+      只有悬浮栏叠加 .m3-glass —— 用户 2026-09-19 明确要求毛玻璃。
+      顶栏与设置面板不许跟着改：它们各自有断言守着（正文滚过时不许透出）。 */
 .m3-sheet {
   background: var(--surface-container-low);
   border: 1px solid var(--outline-variant);
   box-shadow: var(--m3e-elevation-3);
+}
+
+/* ---- 毛玻璃 --------------------------------------------------------------
+   只往 .m3-sheet 上叠一层，改的是"底"和"边"，不动圆角/阴影/层级，
+   所以形状契约与 elevation 不受影响。
+   四条规矩：
+     1. 底色与模糊一起设，**不单独设半透明底**：没有 blur 的半透明
+        会让正文从底下穿过来，字读不出。两条兜底都退回实底。
+     2. 强度用**局部变量**调，不要另写一条 background：
+        .m3-glass--strong 只改 --glass-fill-here / --glass-blur-here，
+        于是下面两条兜底（直接写 background 与 backdrop-filter）仍然压得住它。
+        若改成第二个带 background 的类，兜底就会失效得很安静。
+     3. 只写无前缀的 backdrop-filter，不写 -webkit- 那份：
+        产物里它活不下来（CSS 压缩按 Vite 的 browserslist 目标把它当冗余删掉，
+        dist 里实测只剩一条），留着只会让注释与产物不一致。
+        Safari 16.4+ 认无前缀；更老的 Safari 落到下面 @supports 的实底兜底。
+     4. 绝不 animate blur 半径 —— 每帧重算高斯模糊是掉帧的主要来源。
+        动效只做 transform / opacity。
+   ------------------------------------------------------------------------- */
+.m3-glass {
+  --glass-fill-here: var(--glass-fill);
+  --glass-blur-here: var(--glass-blur);
+  background: color-mix(in srgb, var(--surface-container-low) var(--glass-fill-here), transparent);
+  border-color: var(--glass-border);
+  backdrop-filter: blur(var(--glass-blur-here)) saturate(var(--glass-saturate));
+}
+
+/* 压在正文上的那一档（悬浮栏展开面板）：更实、更糊 */
+.m3-glass--strong {
+  --glass-fill-here: var(--glass-fill-strong);
+  --glass-blur-here: var(--glass-blur-strong);
+}
+
+/* 上缘高光：一条向内 1px 的亮线，玻璃的"厚度"是它给的，不是阴影给的 */
+.m3-glass::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 1px 0 var(--glass-rim);
+  pointer-events: none;
+}
+
+/*
+ * 兜底条件用无前缀那一条，是故意的：只支持 -webkit- 的老 Safari 会让
+ * `backdrop-filter: blur(2px)` 判为 false → 走进这里退回实底。
+ * 那时它拿到的是一块不透明的浮层（而不是"半透明但没糊"），正好是可读的那一种。
+ */
+@supports not (backdrop-filter: blur(2px)) {
+  .m3-glass {
+    background: var(--surface-container-low);
+    border-color: var(--outline-variant);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .m3-glass {
+    background: var(--surface-container);
+    backdrop-filter: none;
+  }
 }
 
 .m3-sheet--side {
@@ -553,14 +614,9 @@ a.m3-chip:hover {
   background: var(--surface-container-low);
 }
 
-/* 经线：竖向等距细线。向下渐隐 —— 上半是"上了机还没织"的部分 */
-.loom-plate::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image: repeating-linear-gradient(90deg, var(--loom-warp) 0 1px, transparent 1px var(--loom-pitch));
-  mask-image: linear-gradient(180deg, #000 0%, #000 34%, transparent 92%);
-}
+/* 经线由 index.astro 的**每一格月份**自己画（一根居中竖线，向上渐隐）。
+   这里曾另铺过一层 13px 间距的竖向渐变线，和 12 格的间距对不齐，
+   两套竖线并排读起来像栅格纸而不是织机 —— 摘掉。 */
 
 /* 纬线：横向等距细线，只在下半部出现 —— 布是从下往上织出来的。
    ⚠️ 两层线若都铺满，读起来就是张方格纸（像仪表盘），母题反而变噪音。 */
@@ -606,6 +662,8 @@ a.m3-chip:hover {
    2. m3-kite-glide —— 纸鸢漂移。属于 ambient（13s 级），**绝不用于交互反馈**。
    3. m3-knot-in —— 时间线筛选后节点依次归位：位移量编码"顺序"，
       不是纯装饰。只在用户点过筛选片之后才挂（见 timeline.astro 的 data-filtered）。
+   4. m3-weft-shuttle —— 首页机杼板的布从布口往上织出来，逐格错落 40ms。
+      编码的是"发布是一格一格攒出来的"，不是给柱子加个生长特效。
    ============================================================================ */
 @keyframes m3-weft-draw {
   from {
@@ -640,6 +698,14 @@ a.m3-chip:hover {
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+/* 首页机杼板的"织出来"。只有 from —— to 就是元素自己的样子（满高、不缩），
+   所以动画不跑时布是完整的。挂在 index.astro 的 .bar-fill 上，逐格 delay。 */
+@keyframes m3-weft-shuttle {
+  from {
+    transform: scaleY(0);
   }
 }
 

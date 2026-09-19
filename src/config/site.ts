@@ -39,14 +39,16 @@ export const SITE = {
  * （见 `src/config/timeline.ts`）。关掉时间线时**必须同时**把这一项注释掉，
  * 否则会出现一个 404 的导航项 —— 两者是分开的开关，没有自动联动，
  * 因为导航也包含不走这套开关的静态页。
+ *
+ * 2026-09-19：「分类」「标签」两条从这里退场。它们各自曾是一个列表页 +
+ * 一个明细页（共 4 个路由），内容与常驻悬浮栏完全重复；现在统一收进
+ * 归档页的筛选态（`/archives?category=` / `?tag=`），旧地址由 _redirects 301。
  */
 export const NAV = [
   { label: '首页', href: '/' },
   { label: '博客', href: '/blog' },
   { label: '时间线', href: '/timeline' },
   { label: '归档', href: '/archives' },
-  { label: '分类', href: '/categories' },
-  { label: '标签', href: '/tags' },
   { label: '搜索', href: '/search' },
 ] as const;
 

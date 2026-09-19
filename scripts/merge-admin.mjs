@@ -237,9 +237,24 @@ const BASE_HEADERS = [
   '  Cross-Origin-Resource-Policy: same-origin',
 ];
 
+/*
+ * ⚠️ 这一段会**覆盖** dist/_redirects，而 Astro 刚从 public/_redirects 拷进来一份
+ * 前台自己的规则（分类/标签页 301 到归档筛选态）。直接把后台规则写下去会把
+ * 那些 301 抹掉，而且不报错 —— 所以先读回来，再拼在后台规则**前面**。
+ * 顺序有讲究：Pages 取第一条命中的规则，前台那些是具体路径，放在前面不会被
+ * /admin/* 那条兜底吃掉（两者也不重叠）。
+ */
+const SITE_REDIRECTS = join(DIST, '_redirects');
+const siteRules = existsSync(SITE_REDIRECTS)
+  ? readFileSync(SITE_REDIRECTS, 'utf-8').trim()
+  : '';
+
 writeFileSync(
-  join(DIST, '_redirects'),
+  SITE_REDIRECTS,
   [
+    siteRules ? siteRules : '',
+    siteRules ? '' : '#（public/_redirects 不存在，只有后台规则）',
+    '',
     '# 后台静态资源必须先于 SPA 兜底放行。',
     '# 只写 /admin/* -> /admin/ 会连 /admin/assets/*.js 一起吃掉，',
     '# 那些请求会拿到 index.html（MIME 变成 text/html），后台白屏。',

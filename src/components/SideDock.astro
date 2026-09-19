@@ -6,19 +6,27 @@
  * （列表布局 / 明暗 / 减少动效）。它挂在 BaseLayout 里，所以**每一页都在**，
  * 且与顶栏一样通过 view-transition-name 在翻页时保持同一元素身份。
  *
- * 三档形态：
- *   ≥1280px  右侧 64px 图标条（在栅格里占一格），面板向左展开成 280px 浮层
- *   <1280px  贴底的居中药丸图标条，面板从底部升起成抽屉 + 遮罩
+ * 三档形态（几何两档）：
+ *   ≥1280px   左侧 64px 图标条（在栅格里占一格），面板向**右**展开成 344px 浮层
+ *   768–1279  同样是左侧竖条，但版心不加宽；面板照旧浮在正文之上
+ *   <768px    贴底的居中药丸图标条，面板从底部升起成抽屉 + 遮罩
+ *
+ * ★ 为什么挪到左侧（用户 2026-09-19 指定）：
+ *   右半边是阅读动线的落点（换行、翻页、滚到底），常驻浮层压在那里
+ *   会反复挡住正文末字；左侧是动线的起点，展开一次看完就收回。
+ *   左置还顺带解决了"挤"：面板从 280 加宽到 344 仍不占栅格。
  *
  * ★ 为什么展开的面板是**浮层**而不是栅格里的一格：
  *   版心契约要求主列 >= 840px 且是**不变量**。若面板也占一格，
- *   展开时主列会被挤到 624px（840+24+280+24+64 已经用满了 1280 的版心），
+ *   展开时主列会被挤破（840+24+344 已经超出可用的 832），
  *   读者一开面板正文就塌 —— 所以面板绝对定位盖在内容之上，宽度不变。
  *
- * ★ 为什么用实底而不是半透明/毛玻璃：
- *   顶栏禁 backdrop-filter 的断言同样适用于压在正文上的浮层。
- *   这里用 surface-container-low + 发丝线 + elevation-3 做"浮起来"的层次。
- *   （用户提过想要半透明 —— 这与契约冲突，已作为待决项上报，未擅自放开。）
+ * ★ 材质：半透明毛玻璃（.m3-glass，见 main.css），分两档。
+ *   原契约禁 backdrop-filter，用户明确要求玻璃后作废，但**只作废在悬浮栏**：
+ *   顶栏与设置面板仍守实底，各自的断言还在跑。玻璃的三个代价已知并接受：
+ *   正文在底下滚动时会透出轮廓（图标条 74% + blur 20；压在正文上的面板用
+ *   强档 86% + 24，两档的取值理由与"别拿无头截图判断"的坑见 variables.css）、
+ *   合成开销（故绝不动画 blur 半径）、不支持的浏览器（故 @supports 退回实底）。
  */
 import Icon from './Icon.astro';
 import CategoriesWidget from './widgets/CategoriesWidget.astro';
@@ -47,8 +55,8 @@ const panes = [
 ---
 
 <aside class="dock" id="dock" data-pane={panes[0].key} data-collapsed="true" aria-label="侧栏工具">
-  <!-- 图标条：宽屏竖排在正文右侧，窄屏横排贴底。同一份 DOM，只换 CSS 方向 -->
-  <div class="rail" role="toolbar" aria-label="站点工具">
+  <!-- 图标条：≥768px 竖排在正文左侧，更窄时贴底横排。同一份 DOM，只换 CSS 方向 -->
+  <div class="rail m3-glass" role="toolbar" aria-label="站点工具">
     {
       panes.map((p) => (
         <button
@@ -67,9 +75,9 @@ const panes = [
     <span class="rail-thread" aria-hidden="true"></span>
   </div>
 
-  <!-- 展开面板 -->
+  <!-- 展开面板：压在正文上，所以用玻璃的强档（更实、更糊） -->
   <section
-    class="panel m3-sheet"
+    class="panel m3-sheet m3-glass m3-glass--strong"
     id="dock-panel"
     aria-label="悬浮栏面板"
     tabindex="-1"
@@ -144,7 +152,7 @@ const panes = [
     </div>
   </section>
 
-  <!-- 遮罩只在窄屏（面板变成底部抽屉时）出现，见下方媒体查询 -->
+  <!-- 遮罩只在没有栅格那一档（面板盖在正文上时）出现，见下方媒体查询 -->
   <div class="dock-scrim" data-dock-scrim></div>
 </aside>
 
@@ -271,33 +279,37 @@ const panes = [
     /* 翻页时悬浮栏不参与淡入淡出 —— 它是常驻外壳的一部分，和顶栏同理。
        同名元素每页必须唯一（BaseLayout 只在 showNav 时渲染它）。 */
     view-transition-name: dock;
+    /* DOM 里图标条排在正文**之后**（键盘顺序：先读正文，再摸工具），
+       视觉上要落在栅格的左那一格 —— 用列放置做到，不动 DOM 顺序。 */
+    grid-column: 1;
   }
 
-  /* ---- 图标条：窄屏档（贴底药丸） -------------------------------------- */
+  /* ---- 图标条：< 768px 档（贴底药丸） ------------------------------------ */
   .rail {
     position: fixed;
     /* 只钉 left + 用 transform 居中。若把 left 和 right 同时设成 50%，
        元素宽度会被拉成 0（只剩内边距），图标条会竖成一根 10px 的细条 ——
        而 CSS 完全不报错，肉眼在窄屏上才发现。 */
-    bottom: var(--m3e-space-4);
+    bottom: calc(var(--m3e-space-4) + env(safe-area-inset-bottom, 0px));
     left: 50%;
     transform: translateX(-50%);
     display: flex;
     align-items: center;
     gap: var(--m3e-space-1);
     padding: var(--m3e-space-1);
-    border: 1px solid var(--outline-variant);
+    border: 1px solid var(--glass-border);
     border-radius: var(--shape-corner-xl);
-    background: var(--surface-container);
     box-shadow: var(--m3e-elevation-3);
   }
 
   .rail-btn {
     display: grid;
     place-items: center;
-    gap: 1px;
+    gap: 2px;
     width: 60px;
-    min-height: var(--m3e-space-10);
+    /* 48px = M3 的触屏最小命中区。早先是 40，拇指在药丸上误触相邻分区的
+       概率肉眼可见，而桌面档因为图标条是竖排本来就有 48 以上，不受影响。 */
+    min-height: 48px;
     padding: var(--m3e-space-1) 0;
     border: none;
     border-radius: var(--shape-corner-l);
@@ -307,13 +319,21 @@ const panes = [
     transition:
       background var(--m3e-duration-short2) var(--m3e-easing-standard),
       color var(--m3e-duration-short2) var(--m3e-easing-standard),
+      transform var(--m3e-duration-short3) var(--m3e-easing-emphasized),
       /* 形状形变：选中时从卡片档 16px 收成胶囊档 —— M3E 用形状说"我在这儿" */
       border-radius var(--m3e-duration-medium1) var(--m3e-easing-emphasized);
   }
 
   .rail-btn:hover {
-    background: color-mix(in srgb, var(--on-surface) 8%, transparent);
+    background: color-mix(in srgb, var(--on-surface) 10%, transparent);
     color: var(--on-surface);
+    transform: translateY(-1px);
+  }
+
+  /* 按下缩一下：玻璃没有"压感"，只靠底色变化确认不了受理，幅度 6% 足够 */
+  .rail-btn:active {
+    transform: scale(0.94);
+    transition-duration: var(--m3e-duration-short1);
   }
 
   .rail-btn.is-active {
@@ -333,14 +353,17 @@ const panes = [
     display: none;
   }
 
-  /* ---- 面板：窄屏档（底部抽屉） ---------------------------------------- */
+  /* ---- 面板：< 768px 档（浮在贴底药丸上方的玻璃卡） ----------------------
+     它**不压住**图标条：留出一条缝，让另一个分区可以直接点进来。
+     早先抽屉是贴底整宽的，把药丸整个盖住 —— 于是手机上"切分区"这件事
+     根本不存在，只能关闭再展开，而遮罩还压在药丸上（点它只会关闭）。 */
   .panel {
     position: fixed;
-    inset: auto 0 0 0;
     z-index: var(--z-overlay);
+    inset: auto var(--m3e-space-3) calc(var(--dock-bar-h) + var(--m3e-space-6) + env(safe-area-inset-bottom, 0px)) var(--m3e-space-3);
     max-height: min(72dvh, 620px);
     overflow: hidden;
-    border-radius: var(--shape-corner-xl) var(--shape-corner-xl) 0 0;
+    border-radius: var(--shape-corner-xl);
     display: flex;
     flex-direction: column;
   }
@@ -349,7 +372,7 @@ const panes = [
     display: flex;
     align-items: center;
     gap: var(--m3e-space-3);
-    padding: var(--m3e-space-3) var(--m3e-space-4) var(--m3e-space-2);
+    padding: var(--m3e-space-3) var(--m3e-space-5) var(--m3e-space-2);
   }
 
   .pane-name {
@@ -377,7 +400,11 @@ const panes = [
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    padding: var(--m3e-space-2) var(--m3e-space-4) var(--m3e-space-5);
+    /* 滚动条在玻璃里比在实底上更显眼，收窄一档并留 gutter：
+       没有 gutter 时，出现/消失滚动条会让内容横向抖 8px。 */
+    scrollbar-gutter: stable;
+    padding: var(--m3e-space-2) var(--m3e-space-5) var(--m3e-space-5);
+    overscroll-behavior: contain;
   }
 
   .pane {
@@ -421,6 +448,11 @@ const panes = [
     display: none;
   }
 
+  /* 展开时把图标条提到遮罩之上，否则第二个分区的图标是"可看见、点不到" */
+  .dock:not([data-collapsed='true']) .rail {
+    z-index: var(--z-dock-open);
+  }
+
   /* 当前分区：一处 data-pane 同时驱动标题、内容、图标条高亮 */
   .dock[data-pane='categories'] [data-pane-name='categories'],
   .dock[data-pane='tags'] [data-pane-name='tags'],
@@ -436,25 +468,44 @@ const panes = [
     display: block;
   }
 
-  /* 窄屏才有遮罩（面板是抽屉，需要它承接"点外面关闭"） */
+  /* 窄屏才有遮罩（面板盖在正文上，要有东西承接"点外面关闭"） */
   @media (min-width: 1280px) {
     .dock-scrim {
       display: none;
     }
   }
 
-  /* 展开动作：面板从所依附的那条边升起。
-     ⚠️ 默认状态就是可见的（动画只负责"演进来"），动画不跑时面板照常显示。 */
+  /* ---- 动效 --------------------------------------------------------------
+     ⚠️ 默认状态就是可见的（动画只负责"演进来"），动画不跑时面板照常显示。
+     ⚠️ 只动 transform / opacity。**不动 blur 半径** —— 每帧重算高斯模糊
+        是毛玻璃掉帧的头号来源（见 main.css 的 .m3-glass）。
+     ---------------------------------------------------------------------- */
   @keyframes m3-dock-up {
     from {
-      transform: translateY(16px);
+      transform: translateY(20px) scale(0.99);
       opacity: 0;
     }
   }
 
+  /* 左置之后面板从栏那一侧推进来（负方向），不再是向右 */
   @keyframes m3-dock-side {
     from {
-      transform: translateX(16px);
+      transform: translateX(-14px) scale(0.97);
+      opacity: 0;
+    }
+  }
+
+  @keyframes m3-fade {
+    from {
+      opacity: 0;
+    }
+  }
+
+  /* 换分区时只有内容换，外壳留在原地：给内容一次很短的横向进位，
+     读者的视线才跟得上"刚刚换的是哪一栏" */
+  @keyframes m3-pane-in {
+    from {
+      transform: translateX(-6px);
       opacity: 0;
     }
   }
@@ -467,32 +518,43 @@ const panes = [
     :root:not(.motion-reduced) .dock-scrim {
       animation: m3-fade var(--m3e-duration-short4) linear both;
     }
-  }
 
-  @keyframes m3-fade {
-    from {
-      opacity: 0;
+    :root:not(.motion-reduced) .pane {
+      animation: m3-pane-in var(--m3e-duration-medium1) var(--m3e-easing-emphasized-decelerate) both;
     }
   }
 
-  /* ---- 宽屏档（>= 1280px）：图标条回到栅格那一格，面板向左展开 --------- */
-  @media (min-width: 1280px) {
+  /* ---- ≥ 768px 档：图标条回到栅格左那一格，面板向右展开 -----------------
+     这一档不分 768 与 1280：几何同一套。1280 那一档多出来的只是**版心加宽**
+     （见 BaseLayout/main.css 的 --m3e-content-max-wide），因为主列 840 的
+     不变量只在宽屏要求，而图标条那一格在两种宽度下都是 64px。 */
+  @media (min-width: 768px) {
     .dock {
       position: sticky;
       top: calc(var(--m3e-topbar-h) + var(--m3e-space-5));
       /* 必须 start 对齐：栅格项默认 stretch 到整行高，sticky 就没有可移动的空间 */
       align-self: start;
-      justify-self: end;
+      justify-self: start;
+      /* 行也钉死：与 BaseLayout 里 main 的 grid-row 成对，
+         稀疏摆放的游标会把"列变窄"的那一项推到下一行（正文底下），
+         且只有在这一格比正文矮的时候才看得出来 —— 见 BaseLayout 的注释。 */
+      grid-row: 1;
     }
 
     .rail {
-      position: static;
+      /* relative 而不是 static —— .m3-glass 的上缘高光是 ::after + absolute，
+         父级一旦不可定位，那条线就会画到整个 .dock 的尺寸上。 */
+      position: relative;
       inset: auto;
       transform: none;
       flex-direction: column;
       width: var(--dock-rail-w);
       padding: var(--m3e-space-2) var(--m3e-space-1);
       border-radius: var(--shape-corner-xl);
+    }
+
+    .rail-btn {
+      width: 100%;
     }
 
     .rail-thread {
@@ -511,17 +573,19 @@ const panes = [
 
     .panel {
       position: absolute;
-      /* 先清掉窄屏档的四边定位，再单独给 top/right ——
-         反过来写（top/right 在前、inset 在后）会被 inset 全量覆盖，
-         面板会掉回视口左下角，而 CSS 不会报任何错。 */
+      /* 先清掉窄屏档的四边定位，再单独给 top/left ——
+         反过来写（top/left 在前、inset 在后）会被 inset 全量覆盖，
+         面板会掉回视口右下角，而 CSS 不会报任何错。 */
       inset: auto;
       top: 0;
-      right: calc(100% + var(--m3e-space-3));
-      /* 向左展开，浮在正文之上 —— 不占栅格宽度，主列 840 因此不被挤 */
-      left: auto;
+      /* 向右展开，浮在正文之上 —— 不占栅格宽度，主列 840 因此不被挤。
+         ⚠️ 偏移量按令牌算，不要写 100%：.dock 是 justify-self: start 的栅格项，
+         它的实际宽度由内容算出来（实测比 --dock-rail-w 窄十几像素），
+         用 100% 会让面板压回图标条上，重叠的那几像素在真机上才看得出来。 */
+      left: calc(var(--dock-rail-w) + var(--m3e-space-3));
       width: var(--dock-panel-w);
-      max-height: calc(100vh - var(--m3e-topbar-h) - var(--m3e-space-8));
-      border-radius: var(--shape-corner-xl);
+      max-height: calc(100dvh - var(--m3e-topbar-h) - var(--m3e-space-8));
+      transform-origin: left center;
     }
 
     .m3-handle {

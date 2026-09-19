@@ -178,10 +178,13 @@ const ogImage = new URL('/og-default.svg', SITE.url).href;
 
     <!--
       .shell 是「正文 + 常驻悬浮栏」的栅格容器。
-      它自己带 .m3-layout，所以版心宽度、左右内边距与顶栏/页脚共用同一套规则：
-      >= 1280px 时版心放宽到 1280，多出来的一格 64px 正好给图标条，
+      它自己带 .m3-layout，所以版心宽度、左右内边距与顶栏/页脚共用同一套规则。
+      >= 768px 起栅格多摆一格 64px 的图标条，且那一格在**左边**；
+      DOM 顺序仍是 main 先、悬浮栏后（键盘与朗读先到正文），
+      左右位置由 grid-column 决定，不靠顺序。
+      >= 1280px 版心放宽到 1280，多出来的一格正好被吸收，
       主列因此**一点没被挤**（840 是不变量，反推见 variables.css）。
-      窄屏时栅格只有一列，悬浮栏改成贴底的图标条。
+      窄于 768 时栅格只有一列，悬浮栏改成贴底的图标条。
     -->
     <div class="shell m3-layout">
       <main id="main" class={width === 'reading' ? 'narrow' : undefined}>
@@ -223,10 +226,25 @@ const ogImage = new URL('/og-default.svg', SITE.url).href;
     column-gap: 0;
   }
 
-  @media (min-width: 1280px) {
+  @media (min-width: 768px) {
     .shell {
-      grid-template-columns: minmax(0, 1fr) var(--dock-rail-w);
+      /* 图标条那一格在左。DOM 里 .dock 是第二个子元素，
+         所以两列都要显式放置 —— 只写 .dock 的话 main 会被自动放进第 1 列，
+         正文被压进 64px 的格子里，而 CSS 不会报任何错。 */
+      grid-template-columns: var(--dock-rail-w) minmax(0, 1fr);
       column-gap: var(--m3e-space-6);
+    }
+
+    /*
+     * ⚠️ 显式列 + 自动行在**稀疏摆放**下会翻车：网格先把 main 放到
+     * (行1, 列2)，游标的列就停在 2；轮到 DOM 里第二个子元素 .dock（列 1，行自动）时，
+     * 规范的做法是"把游标列改成条目的列，若比当前小则行号 +1" —— 于是栏掉到**第 2 行**，
+     * 出现在整篇正文的下面。页面不报错、肉眼在窄一点的高度上才发现。
+     * 所以这里两边都把行写死成 1，绕开游标。
+     */
+    .shell > main {
+      grid-column: 2;
+      grid-row: 1;
     }
   }
 
@@ -234,7 +252,9 @@ const ogImage = new URL('/og-default.svg', SITE.url).href;
     min-width: 0;
     padding-top: var(--m3e-space-8);
     padding-bottom: var(--m3e-space-10);
-    min-height: calc(100vh - var(--m3e-topbar-h) - 200px);
+    /* dvh 而不是 vh：手机浏览器的工具栏是浮在页面之上的，
+       100vh 量到的是"含工具栏"的高度，于是短内容页也总能往下多拖出一截空白。 */
+    min-height: calc(100dvh - var(--m3e-topbar-h) - 200px);
   }
 
   .narrow {
@@ -243,14 +263,16 @@ const ogImage = new URL('/og-default.svg', SITE.url).href;
   }
 
   /*
-   * 窄屏档：悬浮栏收成贴底图标条，会给页面底部盖住一条。
-   * 预留出它的高度，否则页脚最后一行永远被压住（滚动到底才发现）。
+   * 窄屏档：悬浮栏是贴底药丸，会给页面底部盖住一条。
+   * 预留出它的高度（含 iPhone 底部横条的安全区），
+   * 否则页脚最后一行永远被压住（滚动到底才发现）。
    */
   :global(body.has-dock) {
-    padding-bottom: calc(var(--dock-bar-h) + var(--m3e-space-8));
+    padding-bottom: calc(var(--dock-bar-h) + var(--m3e-space-8) + env(safe-area-inset-bottom, 0px));
   }
 
-  @media (min-width: 1280px) {
+  @media (min-width: 768px) {
+    /* 图标条进了栅格那一格，不再盖内容，底部只需常规留白 */
     :global(body.has-dock) {
       padding-bottom: var(--m3e-space-6);
     }

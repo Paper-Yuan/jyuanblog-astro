@@ -7,18 +7,20 @@
  * 当底色无法保证与文字有 4.5:1（暗色主题下尤其危险）。
  *
  * 外壳（浮层圆角、标题、折叠）由 SideDock 统一给，这里只出内容。
+ * ★ 2026-09-19：/tags 与 /tags/:slug 已删除，标签页并入归档页的筛选态
+ *   `?tag=slug`（与分类可叠加）。当前筛的是哪一枚由归档页脚本回填 aria-current，
+ *   服务端读不到查询参数（静态站的 `/archives?tag=x` 就是 `/archives` 同一个文件）。
  */
 import { getTags } from '@/lib/api';
 import { safeColor } from '@/lib/format';
 
 const tags = await getTags().catch(() => []);
-const current = Astro.url.pathname.replace(/\/$/, '') || '/';
 
 /** 颜色先过白名单再进模板：见 @/lib/format 的 safeColor */
 const items = tags.map((t) => ({
   ...t,
   color: safeColor(t.color),
-  href: `/tags/${t.slug}`,
+  href: `/archives?tag=${encodeURIComponent(t.slug)}`,
 }));
 ---
 
@@ -30,16 +32,15 @@ const items = tags.map((t) => ({
           <a
             href={t.href}
             class="m3-chip"
-            class:list={{ 'is-current': current === t.href }}
+            data-filter-tag={t.slug}
             style={t.color ? `--tag-color:${t.color}` : ''}
-            aria-current={current === t.href ? 'page' : undefined}
           >
             # {t.name}
             <span class="n">{t.articleCount ?? 0}</span>
           </a>
         ))}
       </div>
-      <p class="foot type-body-sm">点标签进入该标签的文章列表</p>
+      <p class="foot type-body-sm">点标签即在归档里筛选</p>
     </div>
   )
 }
@@ -60,7 +61,7 @@ const items = tags.map((t) => ({
     border-left: 2px solid var(--tag-color, transparent);
   }
 
-  .cloud a.is-current {
+  .cloud a[aria-current='true'] {
     background: var(--secondary-container);
     color: var(--on-secondary-container);
     font-weight: 600;

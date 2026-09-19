@@ -59,6 +59,29 @@ const months = Array.from({ length: 12 }, (_, i) => {
 const peak = Math.max(1, ...months.map((m) => m.n));
 const activeMonths = months.filter((m) => m.n > 0).length;
 const publishedLast12 = months.reduce((s, m) => s + m.n, 0);
+
+/**
+ * 布的算法：一趟纬 = 一篇文章，等厚。
+ *
+ * 早先是 `n / peak * 100%` 的归一化柱状图 —— 于是"1 篇"和"3 篇"的高度关系
+ * 完全取决于那个月碰巧有几篇，读者得回头数轴才知道布有多厚；而空月份留了个
+ * 3% 的小胖墩，看着像"这几个月织了一点点"，是假信息。
+ * 现在布厚按峰值月倒推（峰值刚好顶到可用高度），于是布边数就是篇数：
+ * 一格三条纬 = 那个月发了三篇，不需要坐标轴。
+ */
+const WEFT_GAP = 2;
+/* 可织高度 = 格子 104 − 篇数行 13 − 月份行 16 − 两道间隙 4。
+   数字对不上的话布会顶出格子，被板子的 overflow:hidden 削掉一截。 */
+const CLOTH_ROOM = 72;
+const WEFT_BAND = Math.max(
+  3,
+  Math.min(16, Math.floor((CLOTH_ROOM - (peak - 1) * WEFT_GAP) / peak))
+);
+/* 上限兜一道：极密的年份（一年几十篇）带子会薄到读不出，宁可退回比例柱，
+   也不要让布顶破格子 —— 等厚这个承诺在正常密度下成立就够了。 */
+const clothH = (n: number) =>
+  n > 0 ? Math.min(n * WEFT_BAND + (n - 1) * WEFT_GAP, CLOTH_ROOM) : 0;
+
 ---
 
 <BaseLayout>
@@ -88,20 +111,21 @@ const publishedLast12 = months.reduce((s, m) => s + m.n, 0);
       </div>
     </div>
 
-    <!-- 机杼·近一年：12 根经线位，发布过的月份压上纬线 -->
+    <!-- 机杼·近一年：12 根经线位，发布过的月份压上纬线（一趟纬 = 一篇） -->
     <figure class="loom m3-reveal">
       <div
         class="loom-plate pulse"
         role="img"
-        aria-label={`最近 12 个月共发布 ${publishedLast12} 篇，其中 ${activeMonths} 个月有落笔，峰值 ${peak} 篇每月`}
+        aria-label={`最近 12 个月共发布 ${publishedLast12} 篇，一趟纬线代表一篇；其中 ${activeMonths} 个月有落笔，最密的月份 ${peak} 篇`}
       >
         <span class="loom-kite" aria-hidden="true"></span>
         <div class="bars">
           {
-            months.map((m) => (
+            months.map((m, i) => (
               <div
                 class={`bar${m.n ? ' has' : ''}${m.current ? ' now' : ''}`}
-                style={`--h:${m.n ? Math.max(12, Math.round((m.n / peak) * 100)) : 3}%`}
+                data-year-start={m.label === '1' && i > 0 ? '' : undefined}
+                style={`--h:${clothH(m.n)}px; --weft-th:${WEFT_BAND}px; --weft-period:${WEFT_BAND + WEFT_GAP}px; --i:${i}`}
                 title={`${m.key} · ${m.n} 篇`}
               >
                 <span class="bar-n">{m.n || ''}</span>
@@ -114,19 +138,20 @@ const publishedLast12 = months.reduce((s, m) => s + m.n, 0);
       </div>
       <figcaption class="loom-cap type-body-sm">
         <span>机杼 · 近一年</span>
-        <span class="loom-meta">{activeMonths} 个月有落笔 · 峰值 {peak} 篇/月</span>
+        <span class="loom-meta">
+          一趟纬 = 一篇 · {activeMonths} 个月有落笔 · 最密 {peak} 篇
+        </span>
       </figcaption>
     </figure>
   </section>
 
   <!--
     主区 + 侧栏。
-    栅格只在 >= 1200px 摆成两列 —— 断点必须与「主列不变量」反推一致：
-    主列 >= 840px（版心契约）+ 侧栏 280 + 间隙 24 = 1144，容器 1200 够用。
-    >= 1280px 时版心再加宽 64+24，多出来的一格给常驻悬浮栏的图标条，
-    主列仍然是 840 —— 加栏不挤正文，见 variables.css 的 --m3e-content-max-wide。
-    若更早就摆两列（比如 1024px），主列会被压到 700 出头，
-    卡片网格退化成单列窄条 —— 加了侧栏反而更难看，且不会报错。
+    栅格只在 >= 1280px 摆成两列 —— 断点必须与「主列不变量」反推一致：
+    >= 1280 时版心放宽到 1280，左边先给常驻悬浮栏的图标条 64 + 24，
+    剩下的 1144 正好是 840 主列 + 24 间隙 + 280 部件列（variables.css 的反推）。
+    若更早摆两列（比如 1200px），主列会被压到 760，跌破 840 的下界 ——
+    加了侧栏反而更难看，且不会报错。
   -->
   <div class="page-grid">
     <div class="main-col">
@@ -257,6 +282,7 @@ const publishedLast12 = months.reduce((s, m) => s + m.n, 0);
   }
 
   .bars {
+    --loom-lab-h: 16px; /* 月份刻度那一行的高度：布口线与各列经线都从它倒推 */
     position: relative;
     z-index: 2;
     display: grid;
@@ -266,30 +292,84 @@ const publishedLast12 = months.reduce((s, m) => s + m.n, 0);
     height: 104px;
   }
 
+  /* 布口（fell）：织到哪儿，线就在哪儿。整排格子坐在同一条线上，
+     否则十二根柱子与板子底边之间那条空白会让布看着是浮着的。 */
+  .bars::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: calc(var(--loom-lab-h) + 2px);
+    height: 1px;
+    background: var(--loom-weft);
+    opacity: 0.6;
+  }
+
   .bar {
+    position: relative;
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
     align-items: center;
     height: 100%;
-    gap: 3px;
+    gap: 2px;
+  }
+
+  /* 空档 = 上了机还没织的经线：一根居中的竖线，向上渐隐。
+     早先这里是一根 3% 高的小胖墩，读起来像"这几个月织了一点点"—— 假信息。 */
+  .bar::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    width: 1px;
+    margin-left: -0.5px;
+    bottom: calc(var(--loom-lab-h) + 2px);
+    height: calc(100% - var(--loom-lab-h) - 4px);
+    background: linear-gradient(180deg, transparent 18%, var(--loom-warp) 78%);
+    opacity: 0.7;
+  }
+
+  /* 织上的地方经线让给纬线，只从带缝里透一点出来 */
+  .bar.has::before {
+    opacity: 0.28;
+  }
+
+  /* 跨年的那一格：经线提成"分经"。没有它，12 个数字读不出这是跨了两个年头 */
+  .bar[data-year-start]::after {
+    content: '';
+    position: absolute;
+    left: -2px;
+    top: 4px;
+    bottom: calc(var(--loom-lab-h) + 2px);
+    width: 1px;
+    background: var(--outline);
+    opacity: 0.75;
   }
 
   .bar-fill {
+    --weft-band: var(--surface-container-highest);
     width: 100%;
-    height: var(--h, 3%);
-    border-radius: var(--shape-corner-xs) var(--shape-corner-xs) 2px 2px;
-    background: var(--surface-container-highest);
+    height: var(--h, 0px);
+    border-radius: 2px 2px 0 0;
+    /* 一趟纬一条带，等厚 —— 布边数就是篇数，不需要坐标轴。
+       周期 = 带厚 + 2px 间隙，所以最上面那趟不会被裁成半截（布边数才等于篇数）。
+       带间那 2px 让底下的经线透出来：那几道透视才是"织出来的"而不是"涂上去的"。 */
+    background-image: repeating-linear-gradient(
+      0deg,
+      var(--weft-band) 0 var(--weft-th, 8px),
+      transparent var(--weft-th, 8px) var(--weft-period, 10px)
+    );
+    transform-origin: bottom;
     transition: height var(--m3e-duration-medium2) var(--m3e-easing-emphasized);
   }
 
   /* 有发布的月份才染主题色 —— 空档保持容器色，一眼能看出"这几个月没写" */
   .bar.has .bar-fill {
-    background: var(--primary-container);
+    --weft-band: var(--primary-container);
   }
 
   .bar.now .bar-fill {
-    background: var(--primary);
+    --weft-band: var(--primary);
   }
 
   .bar-n {
@@ -299,17 +379,48 @@ const publishedLast12 = months.reduce((s, m) => s + m.n, 0);
     min-height: 1em;
   }
 
+  /* 篇数跟着布染色，读者才不必在"数字"和"那一格"之间来回找 */
+  .bar.has .bar-n {
+    color: var(--primary);
+    font-weight: 600;
+  }
+
   .bar-lab {
+    height: var(--loom-lab-h);
+    display: grid;
+    place-items: center;
     color: var(--on-surface-variant);
     font-variant-numeric: tabular-nums;
     opacity: 0.75;
   }
 
+  /* 当月：只把刻度点名，不再给整列刷色 —— 板子上已经有纸鸢在动，
+     第二个动效位就多余了（摘一件首饰再出门）。 */
+  .bar.now .bar-lab {
+    color: var(--primary);
+    opacity: 1;
+    font-weight: 600;
+  }
+
+  /* 入场：布从布口往上织出来，一格比一格晚 40ms（布是一格一格织的，
+     不是整排同时长出来的）。默认状态就是满高的 —— 动画只负责"演进来"，
+     系统要求减少动效或手动关掉时，布照常在那儿。 */
+  @media (prefers-reduced-motion: no-preference) {
+    :root:not(.motion-reduced) .bar-fill {
+      animation-name: m3-weft-shuttle;
+      animation-duration: var(--m3e-duration-medium4);
+      animation-timing-function: var(--m3e-easing-emphasized-decelerate);
+      animation-fill-mode: both;
+      animation-delay: calc(var(--i, 0) * 40ms);
+    }
+  }
+
   .loom-cap {
     display: flex;
+    flex-wrap: wrap;
     align-items: baseline;
     justify-content: space-between;
-    gap: var(--m3e-space-3);
+    gap: var(--m3e-space-2) var(--m3e-space-3);
     margin-top: var(--m3e-space-3);
     color: var(--on-surface-variant);
   }
@@ -324,6 +435,36 @@ const publishedLast12 = months.reduce((s, m) => s + m.n, 0);
     text-align: right;
   }
 
+  /*
+   * 窄屏（约两栏以内）：机杼板只有一格宽，12 根条子摊下来每根 ~27px，
+   * 塞不进"10月"三个字，篇数也只会挤成一团 —— 所以：
+   *   · 月份每三格留一格（4 个刻度足够交代"这是十二个月"）
+   *   · 条子上的篇数收掉（title 与 aria-label 里都有，读屏和鼠标都拿得到）
+   *   · 副文案换行后回到左对齐，不再与主标题抢同一行的两端
+   */
+  @media (max-width: 560px) {
+    .bar-lab {
+      visibility: hidden;
+    }
+
+    .bar:nth-child(3n + 1) .bar-lab {
+      visibility: visible;
+    }
+
+    .bar-n {
+      display: none;
+    }
+
+    .bars {
+      height: 92px;
+      gap: 2px;
+    }
+
+    .loom-meta {
+      text-align: left;
+    }
+  }
+
   /* ---- 主区 + 侧栏 ---- */
   .page-grid {
     display: grid;
@@ -332,7 +473,12 @@ const publishedLast12 = months.reduce((s, m) => s + m.n, 0);
     margin-top: var(--m3e-space-5);
   }
 
-  @media (min-width: 1200px) {
+  /*
+   * 1280 而不是 1200：常驻悬浮栏在 >= 768px 就要占掉栅格左边的 64 + 24，
+   * 1200 那一档摆两列会把主列压到 760（跌破 840 下界），
+   * 且 1200–1279 的版心本来就没加宽。反推见 variables.css。
+   */
+  @media (min-width: 1280px) {
     .page-grid {
       grid-template-columns: minmax(0, 1fr) 280px;
     }

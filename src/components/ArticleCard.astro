@@ -45,7 +45,7 @@ const titleClass = 'title';
     <div class="meta">
       {
         article.category && (
-          <a href={`/categories/${article.category.slug}`} class="m3-chip is-interactive">
+          <a href={`/archives?category=${article.category.slug}`} class="m3-chip is-interactive">
             {article.category.name}
           </a>
         )
