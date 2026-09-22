@@ -1,3 +1,9 @@
+/*
+ * 第三方代码，非本项目原创：@material/material-color-utilities v0.4.0 的
+ * esbuild 预打包产物（Apache License 2.0）。许可原文见同目录
+ * material-color.LICENSE，来源与重新生成命令见同目录 NOTICE.md。
+ * 不要手改本文件 —— 改了就与上游产物不一致，重新生成时会被无声覆盖。
+ */
 // node_modules/@material/material-color-utilities/utils/math_utils.js
 function signum(num) {
   if (num < 0) {

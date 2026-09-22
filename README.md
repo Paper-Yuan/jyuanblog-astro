@@ -217,7 +217,7 @@ src/
 ├── config/site.ts          站点配置单一真源（标题/导航/主题默认值/API 地址）
 ├── lib/
 │   ├── mc-utils.ts         Material 3 动态配色引擎（HCT，移植自 Shirone）
-│   ├── vendor/material-color.mjs  预打包的官方色彩库（见"已知坑"）
+│   ├── vendor/material-color.mjs  预打包的官方色彩库（Apache-2.0，见 NOTICE.md 与"已知坑"）
 │   ├── theme.ts            主题运行时（轻量层，不含引擎）
 │   ├── theme-engine.ts     引擎入口（唯一静态 import mc-utils 的模块，只能动态加载）
 │   ├── api.ts              构建期从 Worker API 拉数据（带备忘录，同页多处复用一次请求）
@@ -439,12 +439,19 @@ Permissions-Policy、后台 `X-Robots-Tag` 等）。**CSP 用的是内联脚本�
 - 后端与管理端未开源（登录、JWT、限流、密码散列的实现都在私有仓库），
   本仓库看不到那部分代码；它们的测试覆盖见上面的门禁表。
 
-## 许可与致谢
+## 许可与第三方声明
 
-本仓库**暂未声明开源许可**（无 LICENSE 文件），默认保留所有权利；
-如需引用其中代码，请先开 issue 联系。第三方资源按其各自许可分发：
+本项目自有代码以 **MIT** 许可发布（见 [`LICENSE`](LICENSE)）。
 
-设计语言为 **Material 3 Expressive**；动态配色引擎参考
-[Shirone](https://github.com/LyraVoid/Shirone)（MIT）。品牌字体为
-[霞鹜文楷 LXGW WenKai](https://github.com/lxgw/LxgwWenKai)（OFL），
-产物里只包含按真实字符集切出的子集，并随包附字体许可原文。
+以下第三方内容**不在 MIT 覆盖范围内**，按其各自许可分发；来源、许可原文与
+"上游升级后如何重新生成"都写在
+[`src/lib/vendor/NOTICE.md`](src/lib/vendor/NOTICE.md)：
+
+| 内容 | 许可 |
+|---|---|
+| `src/lib/vendor/material-color.mjs`（M3 色彩库的 esbuild 预打包产物） | Apache License 2.0（原文随包保留） |
+| 内联图标的形状（Feather Icons / Lucide 同形） | MIT / ISC |
+| 品牌字体 霞鹜文楷 LXGW WenKai | SIL Open Font License 1.1（`src/assets/fonts/OFL.txt`，构建时随字体子集发布） |
+| 配色引擎的调度逻辑参考 [Shirone](https://github.com/LyraVoid/Shirone) | MIT |
+
+设计语言为 **Material 3 Expressive**。
