@@ -11,7 +11,7 @@
  * 依赖：本机 Edge，以及一个已在跑的静态站点（wrangler pages dev dist）。
  */
 import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -93,29 +93,33 @@ class Cdp {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /*
- * ⚠️ 调试端口不能写死。上一轮如果留下一个还活着的 Edge（这台机器上进程
- * 不一定收得干净），connect() 就会连到**那个**浏览器：它带的是上一轮的
- * profile 与 HTTP 缓存 —— 于是量到旧 CSS 的尺寸、旧的 localStorage
- * （面板"默认就是展开的"），报出来的失败看着像设计错了，其实是数据串台。
- * 每次跑随机取一个端口，并显式关掉 HTTP 缓存。
+ * ⚠️ 端口不能自己挑，也不能写死。
+ *   写死 9333：上一轮残留的 Edge 还占着它时，connect() 会连到**那个**浏览器 ——
+ *     带的是旧 profile 与旧 HTTP 缓存，量到的是上一轮的产物（本地踩过，报出来的
+ *     失败看着像设计错了，其实是数据串台）。
+ *   随机挑一个（9400+pid%400）：CI 上直接"调试端口未就绪"，因为没人知道那个端口
+ *     上到底有没有人听。
+ * 正确做法是让浏览器自己挑（--remote-debugging-port=0），它会把真实端口写进
+ * 我们那个临时 profile 里的 DevToolsActivePort —— 文件在我们的目录下，
+ * 读到的端口按定义就是我们亲手起的那个进程，既不会撞也不会串台。
  */
-const DEBUG_PORT = Number(process.env.JYUANBLOG_CDP_PORT) || 9400 + (process.pid % 400);
+let debugPort = 0;
 
 async function connect() {
   for (let i = 0; i < 40; i++) {
     try {
-      const res = await fetch(`http://127.0.0.1:${DEBUG_PORT}/json/version`);
+      const res = await fetch(`http://127.0.0.1:${debugPort}/json/version`);
       if (res.ok) return;
     } catch {
       /* 还没起 */
     }
     await sleep(250);
   }
-  throw new Error(`Edge 调试端口 ${DEBUG_PORT} 未就绪`);
+  throw new Error(`Edge 调试端口 ${debugPort} 未就绪`);
 }
 
 async function openTarget(url) {
-  const res = await fetch(`http://127.0.0.1:${DEBUG_PORT}/json/new?${encodeURIComponent(url)}`, {
+  const res = await fetch(`http://127.0.0.1:${debugPort}/json/new?${encodeURIComponent(url)}`, {
     method: 'PUT',
   });
   if (!res.ok) throw new Error(`新建标签页失败: ${res.status}`);
@@ -129,11 +133,14 @@ if (!BROWSER) {
   );
   process.exit(2);
 }
+const edgeErr = [];
 const edge = spawn(
   BROWSER,
   [
     '--headless=new',
-    `--remote-debugging-port=${DEBUG_PORT}`,
+    // 0 = 让浏览器自己挑一个空闲端口，再从上面临时 profile 里的
+    // DevToolsActivePort 读回来（理由见上面 debugPort 的注释）
+    '--remote-debugging-port=0',
     `--user-data-dir=${profileDir}`,
     '--no-first-run',
     '--no-default-browser-check',
@@ -142,11 +149,32 @@ const edge = spawn(
     '--window-size=1440,1000',
     'about:blank',
   ],
-  { stdio: 'ignore' }
+  // stderr 收起来：浏览器起不来时（缺依赖、profile 被锁、端口策略）
+  // 唯一能看见原因的地方就是它，stdio 直接 ignore 等于把线索扔了
+  { stdio: ['ignore', 'ignore', 'pipe'] }
 );
+edge.stderr.on('data', (chunk) => edgeErr.push(chunk.toString()));
+
+/** 等浏览器把自己挑到的端口写进 profile/DevToolsActivePort */
+async function readDevToolsPort() {
+  const file = join(profileDir, 'DevToolsActivePort');
+  for (let i = 0; i < 60; i++) {
+    if (existsSync(file)) {
+      const port = parseInt(readFileSync(file, 'utf-8').split('\n')[0], 10);
+      if (port > 0) return port;
+    }
+    if (edge.exitCode !== null) break;
+    await sleep(250);
+  }
+  throw new Error(
+    `拿不到 DevToolsActivePort（浏览器退出码 ${edge.exitCode}）。stderr：` +
+      (edgeErr.join('').trim().slice(-400) || '(无输出)')
+  );
+}
 
 let exitCode = 0;
 try {
+  debugPort = await readDevToolsPort();
   await connect();
   const target = await openTarget(`${BASE}/`);
   const ws = new WebSocket(target.webSocketDebuggerUrl);
