@@ -193,6 +193,23 @@ try {
     await sleep(700);
   };
 
+  /*
+   * 静态服务必须在跑。它挂了的时候症状是"跑到一半 Page.navigate 超时"，
+   * 看起来像页面自己卡死，其实是没人在 8790 上应答 —— 而 astro build 会清空
+   * 并重写 dist，正在服务 dist 的 wrangler pages dev 常常就死在那一步。
+   * 所以开跑前先用 Node 探一次，把话说明白。
+   */
+  try {
+    const pre = await fetch(`${BASE}/`, { signal: AbortSignal.timeout(5000) });
+    if (!pre.ok) throw new Error(`HTTP ${pre.status}`);
+  } catch (e) {
+    throw new Error(
+      `静态站点没在 ${BASE} 上响应（${e.message}）。` +
+        '先跑 npx wrangler pages dev dist --port 8790 再校验；' +
+        '注意 astro build 会清空 dist，构建之后要重启这个服务。'
+    );
+  }
+
   // =========================================================================
   // 1. 形状契约：按钮 12px 核心控件圆角，chip 全圆，卡片大圆角，图标按钮全圆
   // =========================================================================

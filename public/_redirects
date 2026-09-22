@@ -1,17 +1,20 @@
 # Cloudflare Pages 重定向（这个文件会被原样复制到 dist/ 根目录）。
 #
 # 2026-09-19：分类页与标签页合并进归档页的筛选态，四个路由退场。
-# 线上已有外部链接与搜索引擎收录，所以旧地址必须 301 而不是 404：
-# 明细页带着 slug，正好落到对应的筛选参数上（命名段 :slug 可以在目标里复用，
-# 见 https://developers.cloudflare.com/pages/configuration/redirects/）。
+# 线上已有外部链接与搜索引擎收录，所以旧地址必须 301 而不是 404。
+#
+# ⚠️ 这里只放**索引页**那四条静态规则。带 slug 的明细页规则不在这里，
+#    由 scripts/merge-admin.mjs 在构建期按真实 slug 逐条生成 —— 因为
+#    Cloudflare Pages 生产环境**不会把命名段替换进查询串**：
+#      /categories/:slug /archives?category=:slug   301
+#    线上实测跳到了 /archives?category=%3Aslug（字面的 ":slug"），
+#    而本地 `wrangler pages dev` 会替换 —— 两边行为不一致，本地自检骗得过。
+#    显式列出每一条没有占位符，本地与线上就只能是同一个结果。
 #
 # ⚠️ 索引页要单独两条：Pages 按整串匹配，`/categories` 不会顺带命中
 #    `/categories/`（带斜杠的那份才是多数爬虫与旧导航实际请求的地址）。
 
 /categories       /archives    301
 /categories/      /archives    301
-/categories/:slug /archives?category=:slug    301
-
 /tags             /archives    301
 /tags/            /archives    301
-/tags/:slug       /archives?tag=:slug         301

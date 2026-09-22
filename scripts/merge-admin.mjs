@@ -249,11 +249,41 @@ const siteRules = existsSync(SITE_REDIRECTS)
   ? readFileSync(SITE_REDIRECTS, 'utf-8').trim()
   : '';
 
+/*
+ * 带 slug 的 301 在这里**逐条生成**，不写成 public/_redirects 里的占位符规则。
+ * 原因：Cloudflare Pages 生产环境不会把命名段替换进查询串 ——
+ *   /categories/:slug /archives?category=:slug  301
+ * 线上实测跳到 ?category=%3Aslug（字面的 ":slug"），而本地 `wrangler pages dev`
+ * 会正确替换。两边行为不一致，本地自检骗得过，只有真上线才露出来。
+ * 显式列出每一条就没有占位符可崩，本地与线上必然是同一个结果。
+ *
+ * 数据源用已构建好的首页 HTML：悬浮栏里那份分类/标签清单就是这些地址本身，
+ * 所以"重定向表"和"导航"同源，不会出现多一条或少一条。
+ */
+const HOME = join(DIST, 'index.html');
+const seenRule = new Set();
+const detailRules = [];
+if (existsSync(HOME)) {
+  for (const m of readFileSync(HOME, 'utf-8').matchAll(/\/archives\?(category|tag)=([^"&\s]+)/g)) {
+    const [, kind, slug] = m;
+    const key = `${kind}:${slug}`;
+    if (seenRule.has(key)) continue;
+    seenRule.add(key);
+    detailRules.push(
+      `/${kind === 'category' ? 'categories' : 'tags'}/${slug}    /archives?${kind}=${slug}    301`
+    );
+  }
+}
+
 writeFileSync(
   SITE_REDIRECTS,
   [
     siteRules ? siteRules : '',
     siteRules ? '' : '#（public/_redirects 不存在，只有后台规则）',
+    '',
+    '# 明细页 → 归档筛选态。以下每条由 scripts/merge-admin.mjs 在构建期生成，',
+    '# 不要手改（改了会被下次构建覆盖）；理由见该文件里的注释。',
+    ...detailRules,
     '',
     '# 后台静态资源必须先于 SPA 兜底放行。',
     '# 只写 /admin/* -> /admin/ 会连 /admin/assets/*.js 一起吃掉，',

@@ -88,6 +88,38 @@ if (full) {
   );
 }
 
+/*
+ * ---- 5. _redirects：旧分类/标签地址必须逐条列出，不许留占位符 ----
+ * Cloudflare Pages 生产环境不会把命名段（:slug）替换进查询串，本地
+ * `wrangler pages dev` 却会 —— 占位符版规则在本地全绿、线上跳到 ?category=%3Aslug。
+ * 所以这里两头都查：没有占位符，且首页链到的每个筛选值都有对应 301。
+ */
+const redirPath = join(distDir, '_redirects');
+check('_redirects 已生成', existsSync(redirPath));
+if (existsSync(redirPath)) {
+  const text = readFileSync(redirPath, 'utf-8');
+  const lines = text.split(/\r?\n/).filter((l) => l.trim() && !l.trim().startsWith('#'));
+  const placeholders = lines.filter((l) => /[?&][^\s=]*=[^\s]*:[a-z]/i.test(l));
+  check(
+    '_redirects 的查询串里没有命名段占位符',
+    placeholders.length === 0,
+    placeholders.join(' | ') || `${lines.length} 条规则，全部显式`
+  );
+  const homePath = join(distDir, 'index.html');
+  if (existsSync(homePath)) {
+    const wanted = new Set();
+    for (const m of readFileSync(homePath, 'utf-8').matchAll(/\/archives\?(category|tag)=([^"&\s]+)/g)) {
+      wanted.add(`/${m[1] === 'category' ? 'categories' : 'tags'}/${m[2]}`);
+    }
+    const missing = [...wanted].filter((src) => !lines.some((l) => l.startsWith(`${src} `)));
+    check(
+      '首页链到的每个分类/标签都有对应 301',
+      wanted.size > 0 && missing.length === 0,
+      missing.length ? `缺：${missing.join(', ')}` : `${wanted.size} 条已覆盖`
+    );
+  }
+}
+
 console.log(
   `\n${fails.length === 0 ? '全部通过' : `${fails.length} 项未通过`}`
 );
