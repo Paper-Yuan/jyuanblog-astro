@@ -1,0 +1,40 @@
+# 统一行末换行符：仓库与工作区都用 LF。
+#
+# 为什么不写 core.autocrlf（那是每台机器各一份的本地配置，带不走，
+# 换台机器就又是 CRLF）：.gitattributes 随仓库分发，克隆下来就一致。
+#
+# 这件事在这里不只是"diff 好看点"：后台的 tokens:check 拿 sha256 前 16 位
+# 当令牌指纹，而 tokens.css 是从访客前台的 variables.css 逐字抄出来的。
+# Windows 工作副本是 CRLF 时，同一份真源在本地与 CI 生成两个不同指纹
+# （两边各自自洽所以门禁不误报，但那个数字跨系统不可比，排查时纯属误导）。
+#
+# 注意：不要在这里加 `text` 之外的强制转换来"顺手修历史"。
+# 历史里的 blob 已经是 LF（git ls-files --eol 全是 i/lf），
+# 需要修的只是工作区那批 w/crlf —— 用 git add --renormalize 或直接重写文件。
+
+* text=auto eol=lf
+
+# 以下这些绝不能被"文本化"：改写换行会直接损坏字节
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.avif binary
+*.ico binary
+*.bmp binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.eot binary
+*.pdf binary
+*.zip binary
+*.gz binary
+*.mp3 binary
+*.m4a binary
+*.ogg binary
+*.wav binary
+*.wasm binary
+
+# SVG 是文本（可 diff、可 grep），故意不列进上面
