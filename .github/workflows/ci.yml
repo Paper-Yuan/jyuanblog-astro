@@ -23,27 +23,33 @@ permissions:
 jobs:
   site:
     name: 全站（Worker API + Vue 后台 + Astro 前台）
-    runs-on: ubuntu-latest
+    # 钉死 24.04，不用 ubuntu-latest：GitHub 在 2026-10-19 会把 latest 切到 Ubuntu 26，
+    # 那时这条流水线的 wrangler / headless Chromium 行为会跟着换环境，
+    # 而 CI 变红的原因看起来像"我们提交的代码坏了"。
+    # 要升级就显式改成 ubuntu-26.04 并跑一次，别让它自己飘过来。
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      # v4 那批 action 的 runtime 还是 Node 20，GitHub 每次跑都注一条弃用告警
+      # （邮件里那条 "Node.js 20 is being deprecated" 就是它）。升到当前主版本即消失。
+      - uses: actions/checkout@v7
 
       # 跨仓读取用**只读 Deploy Key**（每仓一把、只读、无用户身份），而不是 PAT：
       # PAT 带着你的账号权限，CI 里泄露一次就能写你的仓库；deploy key 只能读这一个仓。
       - name: Checkout API (jyuanblog-worker)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: Paper-Yuan/jyuanblog-worker
           path: jyuanblog-worker
           ssh-key: ${{ secrets.CI_WORKER_SSH_KEY }}
 
       - name: Checkout admin (jyuanblog-frontend)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: Paper-Yuan/jyuanblog-frontend
           path: jyuanblog-frontend
           ssh-key: ${{ secrets.CI_FRONTEND_SSH_KEY }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           # wrangler 4 起要求 Node >= 22（写 20 会在 Bundle check 直接退出）；
           # 本机跑的是 24，这里取 22 LTS 作为两者的下界。
